@@ -3,9 +3,12 @@ package com.redhat.prpbench;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.distribution.ValueAtPercentile;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 @ApplicationScoped
@@ -21,6 +24,7 @@ public class BenchMetrics {
 
     private final AtomicLong lastArrivalNanos = new AtomicLong();
     private final AtomicLong highestSeqSeen = new AtomicLong(-1);
+    private volatile double lastThroughputMbps = 0;
 
     public BenchMetrics(MeterRegistry registry) {
         registry.gauge("prp.sent.total", sent);
@@ -67,11 +71,34 @@ public class BenchMetrics {
     }
 
     public void recordThroughputSample(double mbps) {
+        lastThroughputMbps = mbps;
         throughputSummary.record(mbps);
+    }
+
+    public Map<String, Double> getRttPercentilesUs() {
+        Map<String, Double> result = new LinkedHashMap<>();
+        for (ValueAtPercentile vp : rttTimer.takeSnapshot().percentileValues()) {
+            result.put(percentileKey(vp.percentile()), vp.value() * 1_000_000);
+        }
+        return result;
+    }
+
+    public Map<String, Double> getJitterPercentilesUs() {
+        Map<String, Double> result = new LinkedHashMap<>();
+        for (ValueAtPercentile vp : jitterSummary.takeSnapshot().percentileValues()) {
+            result.put(percentileKey(vp.percentile()), vp.value());
+        }
+        return result;
+    }
+
+    private static String percentileKey(double p) {
+        if (p >= 0.999) return "p999";
+        return "p" + (int) (p * 100);
     }
 
     public long getSent() { return sent.get(); }
     public long getReceived() { return received.get(); }
     public long getLost() { return Math.max(0, highestSeqSeen.get() + 1 - received.get()); }
     public long getBytesTransferred() { return bytesTransferred.get(); }
+    public double getLastThroughputMbps() { return lastThroughputMbps; }
 }

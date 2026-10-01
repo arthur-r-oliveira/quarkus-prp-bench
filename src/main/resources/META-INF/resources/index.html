@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRP Bench</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --surface:#0d1017;--card:#151921;--border:#252a34;
+  --text:#e2e4e9;--text2:#8b8fa3;--text3:#555b6e;
+  --blue:#4c9aff;--green:#36b37e;--red:#ff5630;--amber:#ffab00;
+  --purple:#b07cff;--cyan:#00b8d9;
+}
+body{background:var(--surface);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:0;min-height:100vh}
+
+header{display:flex;align-items:center;gap:16px;padding:16px 24px;border-bottom:1px solid var(--border);background:var(--card)}
+header h1{font-size:18px;font-weight:600;letter-spacing:-.3px}
+.mode-badge{font-size:11px;font-weight:700;letter-spacing:.5px;padding:4px 10px;border-radius:4px;background:#253040;color:var(--blue)}
+.status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.status-dot.running{background:var(--green);box-shadow:0 0 6px var(--green)}
+.status-dot.stopped{background:var(--red)}
+.status-label{font-size:13px;color:var(--text2)}
+.spacer{flex:1}
+#stop-btn{padding:6px 16px;font-size:13px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text);cursor:pointer;transition:all .15s}
+#stop-btn:hover{background:var(--red);border-color:var(--red);color:#fff}
+#stop-btn:disabled{opacity:.4;cursor:default;background:transparent;border-color:var(--border);color:var(--text2)}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:20px 24px}
+.tile{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px}
+.tile-label{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text2);margin-bottom:6px}
+.tile-value{font-size:28px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.tile-unit{font-size:13px;font-weight:400;color:var(--text2);margin-left:4px}
+.tile-sub{font-size:12px;color:var(--text3);margin-top:4px;font-variant-numeric:tabular-nums}
+
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 24px 20px}
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;min-height:220px;display:flex;flex-direction:column}
+.chart-card h3{font-size:12px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--text2);margin-bottom:12px}
+.chart-card canvas{flex:1;width:100%;border-radius:4px}
+
+.percentiles{display:grid;grid-template-columns:1fr;gap:0}
+.pct-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+.pct-row:last-child{border-bottom:none}
+.pct-label{font-size:13px;color:var(--text2)}
+.pct-value{font-size:14px;font-weight:600}
+
+.chart-card.wide{grid-column:1/-1}
+
+@media(max-width:900px){
+  .charts{grid-template-columns:1fr}
+  .tiles{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>PRP Bench</h1>
+  <span class="mode-badge" id="mode">--</span>
+  <span class="status-dot" id="status-dot"></span>
+  <span class="status-label" id="status-label">Connecting...</span>
+  <span class="spacer"></span>
+  <button id="stop-btn" disabled>Stop</button>
+</header>
+
+<div class="tiles">
+  <div class="tile">
+    <div class="tile-label">Sent</div>
+    <div class="tile-value" id="t-sent">--</div>
+    <div class="tile-sub" id="t-sent-rate"></div>
+  </div>
+  <div class="tile">
+    <div class="tile-label">Received</div>
+    <div class="tile-value" id="t-recv">--</div>
+    <div class="tile-sub" id="t-recv-rate"></div>
+  </div>
+  <div class="tile">
+    <div class="tile-label">Lost</div>
+    <div class="tile-value" id="t-lost" style="color:var(--red)">--</div>
+    <div class="tile-sub" id="t-loss-pct"></div>
+  </div>
+  <div class="tile">
+    <div class="tile-label">Throughput</div>
+    <div class="tile-value" id="t-thru">--<span class="tile-unit">Mbit/s</span></div>
+  </div>
+  <div class="tile">
+    <div class="tile-label">Bytes Transferred</div>
+    <div class="tile-value" id="t-bytes">--</div>
+  </div>
+</div>
+
+<div class="charts">
+  <div class="chart-card">
+    <h3>Throughput</h3>
+    <canvas id="c-thru"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>RTT (<span style="text-transform:none">&mu;s</span>)</h3>
+    <div class="percentiles" id="rtt-pcts">
+      <div class="pct-row"><span class="pct-label">p50</span><span class="pct-value">--</span></div>
+      <div class="pct-row"><span class="pct-label">p95</span><span class="pct-value">--</span></div>
+      <div class="pct-row"><span class="pct-label">p99</span><span class="pct-value">--</span></div>
+      <div class="pct-row"><span class="pct-label">p99.9</span><span class="pct-value">--</span></div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h3>Packets / sec</h3>
+    <canvas id="c-pps"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Jitter (<span style="text-transform:none">&mu;s</span>)</h3>
+    <div class="percentiles" id="jitter-pcts">
+      <div class="pct-row"><span class="pct-label">p50</span><span class="pct-value">--</span></div>
+      <div class="pct-row"><span class="pct-label">p95</span><span class="pct-value">--</span></div>
+      <div class="pct-row"><span class="pct-label">p99</span><span class="pct-value">--</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const HISTORY = 120;
+const thruHistory = [];
+const sentRateHistory = [];
+const recvRateHistory = [];
+
+let prevSent = null;
+let prevRecv = null;
+let pollTimer = null;
+
+function fmt(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'G';
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+  return String(n);
+}
+
+function fmtUs(v) {
+  if (v == null || isNaN(v)) return '--';
+  if (v >= 1e6) return (v / 1e6).toFixed(1) + ' s';
+  if (v >= 1e3) return (v / 1e3).toFixed(1) + ' ms';
+  return v.toFixed(0) + ' µs';
+}
+
+function push(arr, val) {
+  arr.push(val);
+  if (arr.length > HISTORY) arr.shift();
+}
+
+function niceMax(v) {
+  if (v <= 0) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(v)));
+  const norm = v / mag;
+  if (norm <= 1) return mag;
+  if (norm <= 2) return 2 * mag;
+  if (norm <= 5) return 5 * mag;
+  return 10 * mag;
+}
+
+function drawChart(canvas, series, opts = {}) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = rect.height;
+  const pad = { t: 8, r: 12, b: 24, l: 52 };
+  const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+
+  ctx.fillStyle = '#0d1017';
+  ctx.fillRect(0, 0, W, H);
+
+  let maxY = 1;
+  for (const s of series) {
+    for (const v of s.data) if (v > maxY) maxY = v;
+  }
+  maxY = niceMax(maxY * 1.1);
+
+  const gridLines = 4;
+  ctx.strokeStyle = '#1e222d';
+  ctx.lineWidth = 1;
+  ctx.fillStyle = '#555b6e';
+  ctx.font = '11px -apple-system, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i <= gridLines; i++) {
+    const y = pad.t + ch - (i / gridLines) * ch;
+    const val = (i / gridLines) * maxY;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, y);
+    ctx.lineTo(pad.l + cw, y);
+    ctx.stroke();
+    ctx.fillText(fmt(Math.round(val)), pad.l - 6, y);
+  }
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  const maxLen = Math.max(...series.map(s => s.data.length));
+  const labels = [0, Math.floor(maxLen / 2), maxLen - 1];
+  for (const idx of labels) {
+    if (idx < 0) continue;
+    const x = pad.l + (maxLen > 1 ? (idx / (maxLen - 1)) * cw : 0);
+    const secs = maxLen - 1 - idx;
+    ctx.fillText(secs === 0 ? 'now' : `-${secs}s`, x, pad.t + ch + 6);
+  }
+
+  for (const s of series) {
+    if (s.data.length < 2) continue;
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < s.data.length; i++) {
+      const x = pad.l + (i / (s.data.length - 1)) * cw;
+      const y = pad.t + ch - (s.data[i] / maxY) * ch;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    const last = s.data[s.data.length - 1];
+    const lx = pad.l + cw;
+    const ly = pad.t + ch - (last / maxY) * ch;
+    ctx.fillStyle = s.color;
+    ctx.beginPath();
+    ctx.arc(lx, ly, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (series.length > 1) {
+    let lx = pad.l + 4;
+    ctx.font = '11px -apple-system, sans-serif';
+    for (const s of series) {
+      ctx.fillStyle = s.color;
+      ctx.fillRect(lx, pad.t, 10, 3);
+      lx += 14;
+      ctx.fillStyle = '#8b8fa3';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(s.label + ': ' + fmt(Math.round(s.data[s.data.length - 1] || 0)), lx, pad.t - 2);
+      lx += ctx.measureText(s.label + ': ' + fmt(Math.round(s.data[s.data.length - 1] || 0))).width + 16;
+    }
+  }
+}
+
+function updatePercentiles(containerId, data) {
+  const el = document.getElementById(containerId);
+  const rows = el.querySelectorAll('.pct-row');
+  const keys = Object.keys(data || {});
+  rows.forEach((row, i) => {
+    const valEl = row.querySelector('.pct-value');
+    if (keys[i] !== undefined) {
+      valEl.textContent = fmtUs(data[keys[i]]);
+    }
+  });
+}
+
+async function poll() {
+  try {
+    const res = await fetch('/api/stats');
+    if (!res.ok) throw new Error(res.status);
+    const d = await res.json();
+
+    document.getElementById('mode').textContent = d.mode;
+    const dot = document.getElementById('status-dot');
+    const label = document.getElementById('status-label');
+    const btn = document.getElementById('stop-btn');
+    dot.className = 'status-dot ' + (d.running ? 'running' : 'stopped');
+    label.textContent = d.running ? 'Running' : 'Stopped';
+    btn.disabled = !d.running;
+
+    document.getElementById('t-sent').textContent = fmt(d.sent);
+    document.getElementById('t-recv').textContent = fmt(d.received);
+    document.getElementById('t-lost').textContent = fmt(d.lost);
+    document.getElementById('t-thru').innerHTML = d.throughputMbps.toFixed(1) + '<span class="tile-unit">Mbit/s</span>';
+    document.getElementById('t-bytes').textContent = fmt(d.bytesTransferred);
+    document.getElementById('t-loss-pct').textContent = d.lossPercent.toFixed(2) + '% loss';
+
+    const sentRate = prevSent !== null ? d.sent - prevSent : 0;
+    const recvRate = prevRecv !== null ? d.received - prevRecv : 0;
+    prevSent = d.sent;
+    prevRecv = d.received;
+
+    document.getElementById('t-sent-rate').textContent = fmt(sentRate) + '/s';
+    document.getElementById('t-recv-rate').textContent = fmt(recvRate) + '/s';
+
+    push(thruHistory, d.throughputMbps);
+    push(sentRateHistory, sentRate);
+    push(recvRateHistory, recvRate);
+
+    drawChart(document.getElementById('c-thru'), [
+      { data: thruHistory, color: '#4c9aff', label: 'Mbit/s' }
+    ]);
+
+    drawChart(document.getElementById('c-pps'), [
+      { data: sentRateHistory, color: '#8b8fa3', label: 'sent' },
+      { data: recvRateHistory, color: '#36b37e', label: 'recv' }
+    ]);
+
+    updatePercentiles('rtt-pcts', d.rtt);
+    updatePercentiles('jitter-pcts', d.jitter);
+
+  } catch (e) {
+    document.getElementById('status-label').textContent = 'Connection lost';
+    document.getElementById('status-dot').className = 'status-dot stopped';
+  }
+}
+
+document.getElementById('stop-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('stop-btn');
+  btn.disabled = true;
+  btn.textContent = 'Stopping...';
+  try {
+    await fetch('/api/stats/stop', { method: 'POST' });
+  } catch (e) { /* next poll will update status */ }
+  btn.textContent = 'Stop';
+});
+
+poll();
+pollTimer = setInterval(poll, 1000);
+
+window.addEventListener('resize', () => {
+  drawChart(document.getElementById('c-thru'), [
+    { data: thruHistory, color: '#4c9aff', label: 'Mbit/s' }
+  ]);
+  drawChart(document.getElementById('c-pps'), [
+    { data: sentRateHistory, color: '#8b8fa3', label: 'sent' },
+    { data: recvRateHistory, color: '#36b37e', label: 'recv' }
+  ]);
+});
+</script>
+</body>
+</html>

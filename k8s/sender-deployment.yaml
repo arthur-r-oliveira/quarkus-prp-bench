@@ -8,6 +8,8 @@ metadata:
     role: sender
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: prp-bench
