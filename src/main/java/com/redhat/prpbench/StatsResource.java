@@ -17,13 +17,16 @@ public class StatsResource {
     private final BenchMetrics metrics;
     private final SenderService sender;
     private final ReceiverService receiver;
+    private final ThroughputReporter throughputReporter;
 
     StatsResource(BenchConfig config, BenchMetrics metrics,
-                  SenderService sender, ReceiverService receiver) {
+                  SenderService sender, ReceiverService receiver,
+                  ThroughputReporter throughputReporter) {
         this.config = config;
         this.metrics = metrics;
         this.sender = sender;
         this.receiver = receiver;
+        this.throughputReporter = throughputReporter;
     }
 
     @GET
@@ -46,6 +49,16 @@ public class StatsResource {
         result.put("rtt", metrics.getRttPercentilesUs());
         result.put("jitter", metrics.getJitterPercentilesUs());
         return result;
+    }
+
+    @POST
+    @Path("/start")
+    public Map<String, String> start() {
+        metrics.reset();
+        throughputReporter.reset();
+        sender.start();
+        receiver.start();
+        return Map.of("status", "started");
     }
 
     @POST

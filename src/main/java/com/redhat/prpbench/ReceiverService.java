@@ -39,6 +39,8 @@ public class ReceiverService {
                 .onSuccess(s -> {
                     running = true;
                     s.handler(packet -> {
+                        if (!running) return;
+
                         var data = packet.data();
                         long seq = PrpMessage.sequence(data);
                         metrics.recordReceived(seq, data.length());
@@ -52,11 +54,13 @@ public class ReceiverService {
                         config.bindAddress(), config.dataPort()));
     }
 
+    public void start() {
+        running = true;
+        LOG.info("Receiver started");
+    }
+
     public void stop() {
         running = false;
-        if (socket != null) {
-            socket.close();
-        }
         LOG.info("Receiver stopped");
     }
 

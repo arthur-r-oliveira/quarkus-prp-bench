@@ -17,6 +17,11 @@ public class ThroughputReporter {
         this.metrics = metrics;
     }
 
+    public void reset() {
+        lastBytes = 0;
+        lastTime = System.nanoTime();
+    }
+
     @Scheduled(every = "1s")
     void report() {
         long nowBytes = metrics.getBytesTransferred();

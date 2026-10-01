@@ -96,6 +96,15 @@ public class BenchMetrics {
         return "p" + (int) (p * 100);
     }
 
+    public void reset() {
+        sent.set(0);
+        received.set(0);
+        bytesTransferred.set(0);
+        lastArrivalNanos.set(0);
+        highestSeqSeen.set(-1);
+        lastThroughputMbps = 0;
+    }
+
     public long getSent() { return sent.get(); }
     public long getReceived() { return received.get(); }
     public long getLost() { return Math.max(0, highestSeqSeen.get() + 1 - received.get()); }

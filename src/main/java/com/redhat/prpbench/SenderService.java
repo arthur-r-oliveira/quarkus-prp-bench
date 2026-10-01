@@ -21,7 +21,10 @@ public class SenderService {
     private final AtomicLong sequence = new AtomicLong(0);
 
     private volatile boolean running = false;
+    private boolean initialized = false;
     private DatagramSocket socket;
+    private byte[] payload;
+    private int batchSize;
 
     SenderService(BenchConfig config, BenchMetrics metrics, Vertx vertx) {
         this.config = config;
@@ -42,9 +45,8 @@ public class SenderService {
                 config.messagesPerSecond(), config.payloadBytes());
 
         socket = vertx.createDatagramSocket(new DatagramSocketOptions());
-
-        byte[] payload = new byte[config.payloadBytes()];
-        int batchSize = config.messagesPerSecond() / 1000 + 1;
+        payload = new byte[config.payloadBytes()];
+        batchSize = config.messagesPerSecond() / 1000 + 1;
 
         socket.listen(config.ackPort(), config.bindAddress())
                 .onSuccess(s -> {
@@ -54,28 +56,37 @@ public class SenderService {
                         metrics.recordRtt(rtt);
                     });
                     LOG.infof("ACK listener bound to %s:%d", config.bindAddress(), config.ackPort());
-
-                    running = true;
-
-                    vertx.setPeriodic(1, id -> {
-                        if (!running) {
-                            vertx.cancelTimer(id);
-                            return;
-                        }
-                        for (int i = 0; i < batchSize; i++) {
-                            long seq = sequence.getAndIncrement();
-                            var buf = PrpMessage.encode(seq, System.nanoTime(), payload);
-                            socket.send(buf, config.dataPort(), config.targetHost())
-                                    .onSuccess(v -> metrics.recordSent());
-                        }
-                    });
-
-                    if (config.durationSeconds() > 0) {
-                        vertx.setTimer((long) config.durationSeconds() * 1000, id -> stop());
-                    }
+                    initialized = true;
+                    start();
                 })
                 .onFailure(t -> LOG.errorf(t, "Failed to bind ACK listener on %s:%d",
                         config.bindAddress(), config.ackPort()));
+    }
+
+    public void start() {
+        if (running || !initialized) return;
+
+        sequence.set(0);
+        running = true;
+
+        vertx.setPeriodic(1, id -> {
+            if (!running) {
+                vertx.cancelTimer(id);
+                return;
+            }
+            for (int i = 0; i < batchSize; i++) {
+                long seq = sequence.getAndIncrement();
+                var buf = PrpMessage.encode(seq, System.nanoTime(), payload);
+                socket.send(buf, config.dataPort(), config.targetHost())
+                        .onSuccess(v -> metrics.recordSent());
+            }
+        });
+
+        if (config.durationSeconds() > 0) {
+            vertx.setTimer((long) config.durationSeconds() * 1000, id -> stop());
+        }
+
+        LOG.info("Sender started");
     }
 
     public void stop() {

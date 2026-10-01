@@ -22,9 +22,10 @@ header h1{font-size:18px;font-weight:600;letter-spacing:-.3px}
 .status-dot.stopped{background:var(--red)}
 .status-label{font-size:13px;color:var(--text2)}
 .spacer{flex:1}
-#stop-btn{padding:6px 16px;font-size:13px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text);cursor:pointer;transition:all .15s}
-#stop-btn:hover{background:var(--red);border-color:var(--red);color:#fff}
-#stop-btn:disabled{opacity:.4;cursor:default;background:transparent;border-color:var(--border);color:var(--text2)}
+.ctrl-btn{padding:6px 16px;font-size:13px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text);cursor:pointer;transition:all .15s}
+.ctrl-btn:disabled{opacity:.4;cursor:default;background:transparent;border-color:var(--border);color:var(--text2)}
+.ctrl-btn.stop:hover{background:var(--red);border-color:var(--red);color:#fff}
+.ctrl-btn.start:hover{background:var(--green);border-color:var(--green);color:#fff}
 
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:20px 24px}
 .tile{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px}
@@ -60,7 +61,7 @@ header h1{font-size:18px;font-weight:600;letter-spacing:-.3px}
   <span class="status-dot" id="status-dot"></span>
   <span class="status-label" id="status-label">Connecting...</span>
   <span class="spacer"></span>
-  <button id="stop-btn" disabled>Stop</button>
+  <button class="ctrl-btn stop" id="ctrl-btn" disabled>Stop</button>
 </header>
 
 <div class="tiles">
@@ -263,10 +264,12 @@ async function poll() {
     document.getElementById('mode').textContent = d.mode;
     const dot = document.getElementById('status-dot');
     const label = document.getElementById('status-label');
-    const btn = document.getElementById('stop-btn');
+    const btn = document.getElementById('ctrl-btn');
     dot.className = 'status-dot ' + (d.running ? 'running' : 'stopped');
     label.textContent = d.running ? 'Running' : 'Stopped';
-    btn.disabled = !d.running;
+    btn.disabled = false;
+    btn.textContent = d.running ? 'Stop' : 'Start';
+    btn.className = 'ctrl-btn ' + (d.running ? 'stop' : 'start');
 
     document.getElementById('t-sent').textContent = fmt(d.sent);
     document.getElementById('t-recv').textContent = fmt(d.received);
@@ -305,14 +308,23 @@ async function poll() {
   }
 }
 
-document.getElementById('stop-btn').addEventListener('click', async () => {
-  const btn = document.getElementById('stop-btn');
+document.getElementById('ctrl-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('ctrl-btn');
+  const isRunning = btn.classList.contains('stop');
   btn.disabled = true;
-  btn.textContent = 'Stopping...';
+  btn.textContent = isRunning ? 'Stopping...' : 'Starting...';
   try {
-    await fetch('/api/stats/stop', { method: 'POST' });
+    const endpoint = isRunning ? '/api/stats/stop' : '/api/stats/start';
+    await fetch(endpoint, { method: 'POST' });
+    if (!isRunning) {
+      thruHistory.length = 0;
+      sentRateHistory.length = 0;
+      recvRateHistory.length = 0;
+      prevSent = null;
+      prevRecv = null;
+    }
   } catch (e) { /* next poll will update status */ }
-  btn.textContent = 'Stop';
+  await poll();
 });
 
 poll();
