@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prp-receiver
+  namespace: prp-bench
+  labels:
+    app: prp-bench
+    role: receiver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prp-bench
+      role: receiver
+  template:
+    metadata:
+      labels:
+        app: prp-bench
+        role: receiver
+    spec:
+      hostNetwork: true
+      containers:
+        - name: prp-bench
+          image: quay.io/rhn_support_arolivei/prp-bench:latest
+          env:
+            - name: PRP_BENCH_MODE
+              value: RECEIVER
+            - name: PRP_BENCH_BIND_ADDRESS
+              value: "10.10.10.2"
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 9200
+              name: data
+              protocol: UDP
+          resources:
+            requests:
+              cpu: "1"
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prp-receiver
+  namespace: prp-bench
+  labels:
+    app: prp-bench
+    role: receiver
+spec:
+  selector:
+    app: prp-bench
+    role: receiver
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
