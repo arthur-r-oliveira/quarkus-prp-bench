@@ -106,15 +106,44 @@ receive path cheaper — not to raise the buffer again.
 
 ### Reducing receiver cost
 
-Two knobs matter when the receiver is the bottleneck:
+`PRP_BENCH_ACK_SAMPLE_RATE` makes the receiver ACK every Nth packet rather than
+every one, and jitter is written to the histogram 1-in-100 (the inter-arrival
+delta is still computed on every packet, so it stays a true consecutive-packet
+figure).
 
-- `PRP_BENCH_ACK_SAMPLE_RATE` — the receiver ACKs every Nth packet instead of
-  every one. At the default of 100 this removes an outbound syscall per inbound
-  packet; the whole receive path runs on a single Vert.x event-loop thread, so
-  that work is directly in the critical path. Set to `1` to restore exact
-  per-packet RTT at a large throughput cost.
-- Jitter is sampled into the histogram 1-in-100, though the inter-arrival delta is
-  still computed on every packet, so it remains a true consecutive-packet figure.
+Both were added on the theory that the receive path was syscall-bound. **An A/B
+measurement showed that is not the case** — disabling ACKs entirely changed
+nothing:
+
+| ACK sampling | Sustained receive rate |
+|---|---|
+| every 100 packets | ~1,838 pkt/s |
+| effectively disabled | ~1,842 pkt/s |
+
+The knobs are retained because they are cheap and reduce needless work, but they
+are not the lever for throughput.
+
+## Known limitation: receiver throughput ceiling
+
+The receiver saturates at roughly **1,800 packets/sec**, far below what a Vert.x
+UDP consumer should manage. Offered load above that is dropped by the kernel
+regardless of buffer size. This ceiling is measured but **not yet explained**.
+
+What has been ruled out, each by direct measurement:
+
+| Hypothesis | Evidence against |
+|---|---|
+| Network / PRP link | Kernel reports `receive buffer errors`, not interface drops; ICMP clean |
+| Socket buffer too small | Ceiling unchanged across 208 KB → 16 MB → 128 MB |
+| ACK syscall per packet | Disabling ACKs entirely: no change (table above) |
+| GC pressure | `jvm_gc_overhead` 0.09%, heap near-empty, 41 minor GCs |
+| CPU throttling | 10 throttled periods out of 1,129; 0.18 s total |
+
+What is known: a single `vert.x-eventloop` thread consumes ~100% of one core,
+**97% of it user time** rather than system time, which points at in-process work
+rather than the kernel or syscalls. Profiling that thread (JFR or async-profiler)
+is the next step; until then, treat ~1,800 pkt/s as the usable ceiling and set
+`PRP_BENCH_MESSAGES_PER_SECOND` accordingly for loss-free runs.
 
 ### A note on RTT across restarts
 
