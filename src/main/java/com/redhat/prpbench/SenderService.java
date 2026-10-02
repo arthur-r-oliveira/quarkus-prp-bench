@@ -25,6 +25,8 @@ public class SenderService {
     private DatagramSocket socket;
     private byte[] payload;
     private int batchSize;
+    private long sendTimerId = -1;
+    private long durationTimerId = -1;
 
     SenderService(BenchConfig config, BenchMetrics metrics, Vertx vertx) {
         this.config = config;
@@ -69,7 +71,7 @@ public class SenderService {
         sequence.set(0);
         running = true;
 
-        vertx.setPeriodic(1, id -> {
+        sendTimerId = vertx.setPeriodic(1, id -> {
             if (!running) {
                 vertx.cancelTimer(id);
                 return;
@@ -83,7 +85,7 @@ public class SenderService {
         });
 
         if (config.durationSeconds() > 0) {
-            vertx.setTimer((long) config.durationSeconds() * 1000, id -> stop());
+            durationTimerId = vertx.setTimer((long) config.durationSeconds() * 1000, id -> stop());
         }
 
         LOG.info("Sender started");
@@ -91,6 +93,14 @@ public class SenderService {
 
     public void stop() {
         running = false;
+        if (sendTimerId >= 0) {
+            vertx.cancelTimer(sendTimerId);
+            sendTimerId = -1;
+        }
+        if (durationTimerId >= 0) {
+            vertx.cancelTimer(durationTimerId);
+            durationTimerId = -1;
+        }
         LOG.info("Sender stopped");
     }
 

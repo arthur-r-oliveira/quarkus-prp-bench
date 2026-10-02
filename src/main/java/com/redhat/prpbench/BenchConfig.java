@@ -31,4 +31,16 @@ public interface BenchConfig {
 
     @WithDefault("10.10.10.1")
     String bindAddress();
+
+    /** ACK every Nth packet for RTT sampling. 1 = ACK every packet. */
+    @WithDefault("100")
+    int ackSampleRate();
+
+    /**
+     * Sized to absorb bursts, not sustained overload. An oversized buffer turns
+     * packet loss into an undrainable backlog and GC pressure instead of fixing
+     * anything: 8 MB is roughly 300 ms of headroom at 50k pkt/s.
+     */
+    @WithDefault("8388608")
+    int receiveBufferBytes();
 }

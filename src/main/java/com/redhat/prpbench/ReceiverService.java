@@ -33,7 +33,9 @@ public class ReceiverService {
         LOG.infof("Starting RECEIVER on %s:%d", config.bindAddress(), config.dataPort());
 
         socket = vertx.createDatagramSocket(new DatagramSocketOptions()
-                .setReceiveBufferSize(4 * 1024 * 1024));
+                .setReceiveBufferSize(config.receiveBufferBytes()));
+
+        int ackEvery = Math.max(1, config.ackSampleRate());
 
         socket.listen(config.dataPort(), config.bindAddress())
                 .onSuccess(s -> {
@@ -45,10 +47,14 @@ public class ReceiverService {
                         long seq = PrpMessage.sequence(data);
                         metrics.recordReceived(seq, data.length());
 
-                        var ack = PrpMessage.encode(seq, PrpMessage.senderNanos(data), 0);
-                        socket.send(ack, config.ackPort(), packet.sender().host());
+                        if (seq % ackEvery == 0) {
+                            var ack = PrpMessage.encode(seq, PrpMessage.senderNanos(data), 0);
+                            socket.send(ack, config.ackPort(), packet.sender().host());
+                        }
                     });
-                    LOG.infof("Receiver bound to %s:%d", config.bindAddress(), config.dataPort());
+                    LOG.infof("Receiver bound to %s:%d (rcvbuf requested %d B, ACK every %d pkt)",
+                            config.bindAddress(), config.dataPort(),
+                            config.receiveBufferBytes(), ackEvery);
                 })
                 .onFailure(t -> LOG.errorf(t, "Failed to bind receiver on %s:%d",
                         config.bindAddress(), config.dataPort()));

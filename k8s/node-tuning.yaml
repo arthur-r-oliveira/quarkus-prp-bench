@@ -1,0 +1,27 @@
+apiVersion: tuned.openshift.io/v1
+kind: Tuned
+metadata:
+  name: prp-bench-network
+  namespace: openshift-cluster-node-tuning-operator
+spec:
+  profile:
+    - name: prp-bench-network
+      data: |
+        [main]
+        summary=Socket buffer tuning for high-rate UDP benchmarking on PRP networks
+        include=openshift-node
+
+        [sysctl]
+        # Default rmem_max of 208KB holds only ~5ms of traffic at 50k pkt/s,
+        # causing receive buffer overflow. Raise the ceiling so the application's
+        # requested SO_RCVBUF is honored instead of silently clamped.
+        net.core.rmem_max=134217728
+        net.core.wmem_max=134217728
+        net.core.rmem_default=16777216
+        net.core.wmem_default=16777216
+        net.core.netdev_max_backlog=250000
+  recommend:
+    - match:
+        - label: node-role.kubernetes.io/master
+      priority: 10
+      profile: prp-bench-network

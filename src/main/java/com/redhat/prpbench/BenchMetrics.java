@@ -24,7 +24,11 @@ public class BenchMetrics {
 
     private final AtomicLong lastArrivalNanos = new AtomicLong();
     private final AtomicLong highestSeqSeen = new AtomicLong(-1);
+    private final AtomicLong firstSeqSeen = new AtomicLong(-1);
     private volatile double lastThroughputMbps = 0;
+
+    private static final int JITTER_SAMPLE_RATE = 100;
+    private static final long MAX_PLAUSIBLE_RTT_NANOS = Duration.ofSeconds(10).toNanos();
 
     public BenchMetrics(MeterRegistry registry) {
         registry.gauge("prp.sent.total", sent);
@@ -53,20 +57,30 @@ public class BenchMetrics {
     }
 
     public void recordReceived(long seq, int messageBytes) {
-        received.incrementAndGet();
+        long count = received.incrementAndGet();
         bytesTransferred.addAndGet(messageBytes);
 
+        // Delta is computed every packet so it always reflects consecutive
+        // arrivals; only the histogram write is sampled, since that is the
+        // expensive part on the receive path.
         long now = System.nanoTime();
         long prev = lastArrivalNanos.getAndSet(now);
-        if (prev > 0) {
-            double jitterUs = Math.abs(now - prev) / 1_000.0;
-            jitterSummary.record(jitterUs);
+        if (prev > 0 && count % JITTER_SAMPLE_RATE == 0) {
+            jitterSummary.record(Math.abs(now - prev) / 1_000.0);
         }
 
+        firstSeqSeen.compareAndSet(-1, seq);
         highestSeqSeen.updateAndGet(current -> Math.max(current, seq));
     }
 
+    /**
+     * Timestamps are echoed back by the peer, so a restart on either side (or a
+     * packet drained from a stale backlog) can yield a delta against a different
+     * nanoTime origin. Those readings are meaningless, not slow, so drop them
+     * rather than letting them poison the histogram.
+     */
     public void recordRtt(long rttNanos) {
+        if (rttNanos < 0 || rttNanos > MAX_PLAUSIBLE_RTT_NANOS) return;
         rttTimer.record(Duration.ofNanos(rttNanos));
     }
 
@@ -102,12 +116,22 @@ public class BenchMetrics {
         bytesTransferred.set(0);
         lastArrivalNanos.set(0);
         highestSeqSeen.set(-1);
+        firstSeqSeen.set(-1);
         lastThroughputMbps = 0;
     }
 
     public long getSent() { return sent.get(); }
     public long getReceived() { return received.get(); }
-    public long getLost() { return Math.max(0, highestSeqSeen.get() + 1 - received.get()); }
+    /**
+     * Counts gaps only within the sequence range actually observed. Anchoring to
+     * the first sequence seen keeps the figure correct when the receiver is reset
+     * mid-run, where the sender's sequence is already far above zero.
+     */
+    public long getLost() {
+        long first = firstSeqSeen.get();
+        if (first < 0) return 0;
+        return Math.max(0, highestSeqSeen.get() - first + 1 - received.get());
+    }
     public long getBytesTransferred() { return bytesTransferred.get(); }
     public double getLastThroughputMbps() { return lastThroughputMbps; }
 }

@@ -1,10 +1,13 @@
 package com.redhat.prpbench;
 
+import io.vertx.core.Vertx;
+import io.vertx.core.http.HttpMethod;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import org.jboss.logging.Logger;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -13,20 +16,24 @@ import java.util.Map;
 @Produces(MediaType.APPLICATION_JSON)
 public class StatsResource {
 
+    private static final Logger LOG = Logger.getLogger(StatsResource.class);
+
     private final BenchConfig config;
     private final BenchMetrics metrics;
     private final SenderService sender;
     private final ReceiverService receiver;
     private final ThroughputReporter throughputReporter;
+    private final Vertx vertx;
 
     StatsResource(BenchConfig config, BenchMetrics metrics,
                   SenderService sender, ReceiverService receiver,
-                  ThroughputReporter throughputReporter) {
+                  ThroughputReporter throughputReporter, Vertx vertx) {
         this.config = config;
         this.metrics = metrics;
         this.sender = sender;
         this.receiver = receiver;
         this.throughputReporter = throughputReporter;
+        this.vertx = vertx;
     }
 
     @GET
@@ -58,6 +65,11 @@ public class StatsResource {
         throughputReporter.reset();
         sender.start();
         receiver.start();
+
+        if (config.mode() == BenchConfig.Mode.SENDER) {
+            resetPeer(config.targetHost());
+        }
+
         return Map.of("status", "started");
     }
 
@@ -67,5 +79,13 @@ public class StatsResource {
         sender.stop();
         receiver.stop();
         return Map.of("status", "stopped");
+    }
+
+    private void resetPeer(String peerHost) {
+        vertx.createHttpClient()
+                .request(HttpMethod.POST, 8080, peerHost, "/api/stats/start")
+                .compose(req -> req.send())
+                .onSuccess(resp -> LOG.infof("Peer receiver reset at %s (status %d)", peerHost, resp.statusCode()))
+                .onFailure(t -> LOG.warnf("Could not reset peer at %s: %s", peerHost, t.getMessage()));
     }
 }
