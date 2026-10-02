@@ -29,16 +29,19 @@ public class StatsResource {
     private final SenderService sender;
     private final ReceiverService receiver;
     private final ThroughputReporter throughputReporter;
+    private final HostNetworkMetrics hostMetrics;
     private final Vertx vertx;
 
     StatsResource(BenchConfig config, BenchMetrics metrics,
                   SenderService sender, ReceiverService receiver,
-                  ThroughputReporter throughputReporter, Vertx vertx) {
+                  ThroughputReporter throughputReporter,
+                  HostNetworkMetrics hostMetrics, Vertx vertx) {
         this.config = config;
         this.metrics = metrics;
         this.sender = sender;
         this.receiver = receiver;
         this.throughputReporter = throughputReporter;
+        this.hostMetrics = hostMetrics;
         this.vertx = vertx;
     }
 
@@ -69,6 +72,7 @@ public class StatsResource {
         result.put("rtt", metrics.getRttPercentilesUs());
         result.put("jitter", metrics.getJitterPercentilesUs());
         result.put("config", cfg);
+        result.put("host", hostMetrics.snapshot());
         return result;
     }
 
@@ -76,6 +80,12 @@ public class StatsResource {
     @Path("/start")
     @Consumes(MediaType.APPLICATION_JSON)
     public Map<String, Object> start(StartRequest req) {
+        // Always stop first. start() is a no-op while a run is in flight, so
+        // without this the new settings would be reported back while the timer
+        // kept sending at the previous rate.
+        sender.stop();
+        receiver.stop();
+
         if (req != null) {
             sender.configure(req.messagesPerSecond(), req.payloadBytes(), req.durationSeconds());
         }

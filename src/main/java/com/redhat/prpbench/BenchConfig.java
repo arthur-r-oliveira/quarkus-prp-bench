@@ -36,6 +36,10 @@ public interface BenchConfig {
     @WithDefault("100")
     int ackSampleRate();
 
+    /** PRP device whose two slave LANs are monitored for redundancy health. */
+    @WithDefault("prp0")
+    String prpInterface();
+
     /**
      * 0 (default) leaves the socket buffer to the kernel's net.core.rmem_default,
      * which k8s/node-tuning.yaml raises. Prefer that over setting a value here.

@@ -89,6 +89,72 @@ only one of the two numbers hides it.
 | `prp.jitter.us` | Inter-arrival jitter in microseconds |
 | `prp.throughput.mbps` | Instantaneous throughput in Mbit/s |
 
+## Host and PRP link metrics
+
+Both dashboards carry a **Host & PRP link** panel fed by kernel counters. The pods
+run with `hostNetwork: true`, so `/proc/net/snmp` and `/sys/class/net` already
+refer to the host namespace — no DaemonSet, no extra privileges, no sidecar.
+
+| Reported | Source | Why |
+|---|---|---|
+| UDP rcvbuf errors (total and /sec) | `/proc/net/snmp` | Authoritative loss signal; the application only ever sees packets that survived |
+| UDP in errors | `/proc/net/snmp` | Malformed or undeliverable datagrams |
+| Per-LAN rx packets and rate | `/sys/class/net/<slave>/statistics` | PRP redundancy health — see below |
+| `REDUNDANCY OK` / `LAN DEGRADED` | derived | One-glance verdict |
+
+### Why per-LAN counters matter more than they look
+
+**PRP masks a single LAN failure by design.** If LAN A dies, every frame still
+arrives over LAN B. Loss stays at zero, latency does not move, and *nothing* in
+the application metrics changes. You are now running with no redundancy, on a
+protocol chosen specifically for redundancy, and the benchmark would happily
+report a perfect run.
+
+The only evidence is that one slave interface stopped counting. The two LANs are
+discovered automatically from the `lower_*` links on the PRP device
+(`PRP_BENCH_PRP_INTERFACE`, default `prp0`), so no configuration is needed.
+
+A healthy link looks like this — the two LANs track each other almost exactly,
+because PRP sends every frame down both:
+
+```
+app-level receive   =    5000 pkt/s   (configured 5000)
+LAN A enp6s0        =    5000 pkt/s
+LAN B enp7s0        =    5000 pkt/s
+redundancyOk        = True
+```
+
+That three-way agreement is also a useful correctness check on the tool itself:
+during development it caught a bug where the API reported a newly configured rate
+while the sender kept transmitting at the old one.
+
+### Prometheus and node-exporter
+
+These are published as Prometheus metrics too, so they can be scraped or
+correlated in Grafana:
+
+```
+prp_host_udp_rcvbuf_errors
+prp_host_udp_rcvbuf_errors_per_sec
+prp_host_udp_in_errors
+prp_host_lan_rx_packets{iface="enp6s0"}
+prp_host_lan_rx_packets_per_sec{iface="enp6s0"}
+```
+
+OpenShift already ships node-exporter, which covers the generic counters — useful
+for correlation:
+
+```promql
+rate(node_netstat_Udp_RcvbufErrors[1m])
+rate(node_network_receive_packets_total{device=~"enp6s0|enp7s0"}[1m])
+```
+
+The in-app metrics exist alongside it for two reasons. node-exporter has no idea
+that `enp6s0` and `enp7s0` are a PRP redundancy pair, so it cannot produce the
+degraded-LAN verdict. And querying Thanos from the browser dashboard would mean
+bearer tokens, RBAC and CORS — a lot of moving parts to display numbers the pod
+can already read directly.
+
 ## Configuration
 
 All settings are configured via environment variables (prefix `PRP_BENCH_`):
@@ -105,6 +171,7 @@ All settings are configured via environment variables (prefix `PRP_BENCH_`):
 | `PRP_BENCH_DURATION_SECONDS` | `0` | Test duration (0 = unlimited) |
 | `PRP_BENCH_ACK_SAMPLE_RATE` | `100` | ACK every Nth packet for RTT sampling (1 = every packet) |
 | `PRP_BENCH_RECEIVE_BUFFER_BYTES` | `0` | `0` = leave the socket buffer to the kernel. **Setting this is almost always wrong** — see below |
+| `PRP_BENCH_PRP_INTERFACE` | `prp0` | PRP device whose two slave LANs are monitored for redundancy |
 
 Rate, payload size and duration can also be changed at runtime through
 `POST /api/stats/start`, with no pod restart.
@@ -327,6 +394,15 @@ roughly by how much.
 12. **Check unit conversions in metrics code.** `ValueAtPercentile.value()`
     returns nanoseconds for a Timer; multiplying instead of dividing produced
     RTTs of 3×10¹⁵ µs.
+13. **Cross-check the same quantity from independent sources.** Application
+    rate, LAN A and LAN B counters should agree. When they did not, it exposed
+    an API that reported a new send rate while still transmitting the old one.
+
+**On PRP specifically**
+
+14. **Redundancy failure is silent.** PRP hides a dead LAN by design, so a
+    perfect-looking benchmark can be running with no protection left. Monitor
+    the slave interfaces, not just the PRP device.
 
 ### A note on RTT across restarts
 
