@@ -92,15 +92,19 @@ clamping you.
 **4. Zero loss is not the same as healthy.** A buffer large enough to absorb an
 overshoot hides it as latency instead of loss. Always read loss and RTT together:
 
-| Offered | Loss | Kernel drops | RTT p50 |
-|---|---|---|---|
-| 50000 msg/s | ~95% | millions | — |
-| 1500 msg/s | **0%** | **0** | **~2.9 s** |
+| Offered | Actual rate | Loss | Kernel drops | RTT p50 |
+|---|---|---|---|---|
+| 50000 msg/s | 50000 pps | ~95% | millions | — |
+| 1500 msg/s *(sender overshooting to 2000 pps)* | 2000 pps | **0%** | **0** | **~2.9 s** |
+| 1500 msg/s *(pacing fixed)* | 1525 pps | 0% | 0 | **2.6 ms** |
 
-The second row is not a healthy run. The sender was offering slightly more than
-the receiver could drain, and an 8 MB buffer turned that small excess into
-seconds of queueing delay. Textbook bufferbloat. If RTT is orders of magnitude
-above your ping time, you are over capacity no matter what the loss counter says.
+The middle row is not a healthy run, despite reporting zero loss. The sender was
+offering slightly more than the receiver could drain and the buffer turned that
+small excess into seconds of queueing delay — textbook bufferbloat. Correcting
+the send rate dropped RTT by three orders of magnitude with loss unchanged.
+
+If RTT sits far above your ping time, you are over capacity no matter what the
+loss counter says.
 
 ### Sizing the receive buffer
 
