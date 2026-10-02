@@ -21,6 +21,47 @@ The application runs in two modes on separate hosts:
 - **Receiver** records each packet and sends an ACK back to the sender for RTT measurement.
 - Both expose a REST API on port 8080 for stats and Prometheus metrics.
 
+## Why zero loss matters here
+
+PRP (IEC 62439-3) exists because OT networks cannot tolerate the recovery times
+that IT networks accept as normal. It is worth being precise about why, because
+it determines what this tool should measure.
+
+**PRP has no retransmission and no failover delay — by design.** A PRP node sends
+every frame simultaneously over two independent LANs; the receiver accepts
+whichever copy arrives first and discards the duplicate. If one LAN fails the
+other already carried the frame, so recovery time is **zero**. Compare RSTP, which
+reconverges in seconds — an eternity for a protection relay.
+
+**The traffic it carries has hard deadlines and no second chance.** Typical
+IEC 61850 payloads on these links:
+
+| Traffic | Rate | Deadline | Recovery if lost |
+|---|---|---|---|
+| GOOSE (protection trip) | Event-driven, burst-repeated | 3–4 ms | None — it is multicast, fire-and-forget |
+| Sampled Values (SV) | 4,000–4,800 frames/sec, continuous | Per-sample | None — the sample is simply gone |
+
+These are Layer 2 / UDP multicast streams. There is no TCP underneath, no ACK, no
+retry. A dropped Sampled Values frame is a hole in the current and voltage
+waveform a protection algorithm is integrating; enough holes and the relay either
+fails to trip on a real fault or trips on a phantom one. Both outcomes are
+safety-relevant, and neither shows up as an error anywhere — just as a slightly
+wrong answer.
+
+**So the acceptance criteria are different from IT benchmarking.** Average
+throughput is nearly irrelevant. What matters is:
+
+1. **Zero loss at the offered rate** — not "four nines", zero, because loss is
+   unrecoverable.
+2. **Bounded worst-case latency** — the p99.9 matters far more than the median,
+   since a single late GOOSE frame misses its window just as surely as a lost one.
+3. **Low, stable jitter** — SV processing assumes evenly spaced samples.
+
+This is why the tool reports percentiles rather than averages, why it tracks loss
+and latency together, and why "0% loss" alone is treated as an insufficient
+result throughout this document. A link that delivers every packet 2 seconds late
+has failed an OT requirement just as badly as one that drops them.
+
 ## Dashboard
 
 Each role serves a dashboard on port 8080 that shows only the metrics it actually
@@ -43,7 +84,7 @@ only one of the two numbers hides it.
 |--------|-------------|
 | `prp.sent.total` | Total packets sent (sender side) |
 | `prp.received.total` | Total packets received (receiver side) |
-| `prp.lost.total` | Estimated lost packets (`highestSeq + 1 - received`) |
+| `prp.lost.total` | Gaps within the observed sequence range (`highestSeq - firstSeq + 1 - received`), so resetting mid-run does not report phantom loss |
 | `prp.rtt` | Round-trip time with p50/p95/p99/p99.9 percentiles |
 | `prp.jitter.us` | Inter-arrival jitter in microseconds |
 | `prp.throughput.mbps` | Instantaneous throughput in Mbit/s |
@@ -63,23 +104,32 @@ All settings are configured via environment variables (prefix `PRP_BENCH_`):
 | `PRP_BENCH_MESSAGES_PER_SECOND` | `50000` | Target send rate |
 | `PRP_BENCH_DURATION_SECONDS` | `0` | Test duration (0 = unlimited) |
 | `PRP_BENCH_ACK_SAMPLE_RATE` | `100` | ACK every Nth packet for RTT sampling (1 = every packet) |
-| `PRP_BENCH_RECEIVE_BUFFER_BYTES` | `67108864` | Requested `SO_RCVBUF` on the receiver |
+| `PRP_BENCH_RECEIVE_BUFFER_BYTES` | `0` | `0` = leave the socket buffer to the kernel. **Setting this is almost always wrong** — see below |
+
+Rate, payload size and duration can also be changed at runtime through
+`POST /api/stats/start`, with no pod restart.
 
 ### Node tuning
 
-The kernel silently clamps `SO_RCVBUF` to `net.core.rmem_max`, which defaults to
-212992 B (208 KB) on RHCOS. A request for a larger buffer does not fail — it is
-quietly reduced. Apply the bundled TuneD profile to raise the ceiling:
+Socket buffer sizing belongs on the node, not in the application. Apply the
+bundled TuneD profile:
 
 ```bash
 oc apply -f k8s/node-tuning.yaml
 oc get profile -n openshift-cluster-node-tuning-operator   # expect APPLIED=True
 ```
 
-The Node Tuning Operator applies these without rebooting the node.
+It raises `net.core.rmem_default` / `rmem_max` to 128 MB and
+`netdev_max_backlog` to 250000. The Node Tuning Operator applies these without
+rebooting the node.
 
-Raising the ceiling only makes a larger buffer *possible*. Do not then request a
-huge one — see the sizing note below.
+Two things this fixes:
+
+- `net.core.rmem_default` (208 KB by default on RHCOS) is what the receiver's
+  socket inherits, since the application deliberately does not set `SO_RCVBUF`.
+- `net.core.rmem_max` silently **clamps** any explicit `SO_RCVBUF` request. A
+  request for more does not fail; it is quietly reduced, so always check the
+  granted value rather than trusting the requested one.
 
 ## Interpreting packet loss
 
@@ -101,9 +151,10 @@ speed problem, not a network problem.
 alongside heavy UDP loss is the normal, expected result at 50k packets/sec — four
 orders of magnitude apart. It tells you the link is up, nothing more.
 
-**3. Check the granted buffer, not the requested one.** Compare the `rb` value
-from `ss` against `PRP_BENCH_RECEIVE_BUFFER_BYTES`. If they differ, `rmem_max` is
-clamping you.
+**3. Check the granted buffer, not the requested one.** The `rb` field from `ss`
+is what the socket actually got. With the default configuration it should reflect
+`net.core.rmem_default`; if you set `PRP_BENCH_RECEIVE_BUFFER_BYTES` and `rb` is
+smaller, `rmem_max` is clamping you.
 
 **4. Zero loss is not the same as healthy.** A buffer large enough to absorb an
 overshoot hides it as latency instead of loss. Always read loss and RTT together:
@@ -229,6 +280,54 @@ self-inflicted one.
 > remaining gap is application cost, not the lab. Re-measure on baremetal before
 > treating ~27k pkt/s as a hard figure.
 
+## Lessons learned
+
+Every item below cost real debugging time on this project. They are ordered
+roughly by how much.
+
+**On measurement**
+
+1. **Ask the kernel before you believe the application.** `netstat -su` and
+   `ss -u -a -m` on the node are ground truth; the app's own counters are the
+   least trustworthy signal in the stack.
+2. **Baseline with a different tool before profiling your own code.** iperf3
+   doing 75,633 pkt/s over the same link collapsed an open-ended "why is this
+   slow" into "the fault is ours" in one measurement.
+3. **ICMP proves almost nothing.** `ping` runs at ~1 packet/sec. A clean ping
+   next to 95% UDP loss at 50k pkt/s is expected, not contradictory.
+4. **Zero loss is not success.** A run reported 0% loss while sitting at 2.9 s
+   RTT. Read loss and latency together, always.
+5. **Beware exonerating evidence that is really a fingerprint.** GC looked clean
+   *because* the buffers were off-heap; CPU was 97% user *because* `memset` is
+   userspace work. Both "ruled out" signals were symptoms of the actual bug.
+
+**On buffers**
+
+6. **Verify the buffer you were granted, not the one you asked for.**
+   `net.core.rmem_max` clamps `SO_RCVBUF` silently — no error, just a smaller
+   buffer.
+7. **A bigger buffer is not a safer default.** It cost 15× throughput here via
+   Netty's read-buffer coupling, and separately converts overshoot into
+   unbounded queueing delay. Buffers absorb bursts; they cannot fix a consumer
+   slower than its producer.
+
+**On the tooling**
+
+8. **Check what is actually in your runtime image.** `jcmd` ships in
+   `ubi8/openjdk-17-runtime` despite it being a JRE — assuming otherwise nearly
+   cost a rebuild-and-redeploy cycle that would have perturbed the system under
+   test.
+9. **Try `Thread.print` in a loop before setting up a profiler.** Twelve samples
+   found the culprit outright; JFR was never needed.
+10. **A benchmark must emit the rate you configured.** `rate/1000 + 1` per tick
+    turned 1500 msg/s into 2000 pps — a 33% overshoot that masqueraded as a
+    network problem.
+11. **`oc set env` to an unchanged value does not trigger a rollout.** Two sweep
+    runs silently measured the previous configuration before this was noticed.
+12. **Check unit conversions in metrics code.** `ValueAtPercentile.value()`
+    returns nanoseconds for a Timer; multiplying instead of dividing produced
+    RTTs of 3×10¹⁵ µs.
+
 ### A note on RTT across restarts
 
 RTT is derived from a sender timestamp echoed back by the receiver. `System.nanoTime()`
@@ -251,14 +350,18 @@ the default service account needs the `hostnetwork` SCC.
 
 ### Profiles
 
-| Profile | Path | CPU req/limit | Default rate | Use for |
+| Profile | Path | CPU req/limit | Memory | Use for |
 |---|---|---|---|---|
-| base (default) | `k8s/base` | 250m / 1 | 50000 msg/s | Constrained or virtualised nodes |
-| baremetal | `k8s/overlays/baremetal` | 4 / 8 | 50000 msg/s | Real hardware |
+| base (default) | `k8s/base` | 250m / 2 | 256Mi / 512Mi | Constrained or virtualised nodes |
+| baremetal | `k8s/overlays/baremetal` | 4 / 8 | 2Gi / 4Gi | Real hardware |
 
 The base profile is deliberately small so the benchmark runs on a modest VM lab.
-The baremetal overlay raises CPU, memory, and the receive buffer; it does not
-change application behaviour, only headroom.
+The baremetal overlay only raises CPU and memory headroom — it does not change
+application behaviour.
+
+The receiver's CPU limit is 2 rather than 1 on purpose: the receive loop alone
+can consume a full core, and a 1-CPU limit leaves nothing for JIT, GC or the HTTP
+endpoint, making throttling a confound in every measurement.
 
 ```bash
 export KC_A=/path/to/sno-a/auth/kubeconfig   # sender node
@@ -285,20 +388,32 @@ applying with `oc kustomize k8s/overlays/baremetal`.
 
 ### Tuning for your hardware
 
-Every parameter is an environment variable, so no rebuild is needed:
+Prefer the runtime API — it changes rate, payload and duration with no restart,
+which is what makes a sweep practical:
+
+```bash
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"messagesPerSecond":20000,"payloadBytes":1024}' \
+  http://<sender>:8080/api/stats/start
+```
+
+Everything is also an environment variable if you want it persisted:
 
 ```bash
 oc --kubeconfig=$KC_A -n prp-bench set env deployment/prp-sender \
   PRP_BENCH_MESSAGES_PER_SECOND=20000 PRP_BENCH_PAYLOAD_BYTES=1024
 ```
 
-Note that `oc set env` to a value a Deployment already has does **not** trigger a
-rollout. When scripting a sweep, follow it with an explicit
-`oc rollout restart deployment/prp-sender`, or a run will silently measure the
-previous configuration.
+> `oc set env` to a value a Deployment **already has** does not trigger a
+> rollout. When scripting a sweep, follow it with an explicit
+> `oc rollout restart deployment/prp-sender`, or the run will silently measure
+> the previous configuration. This silently invalidated two runs during
+> development.
 
-Find the usable rate by starting low and increasing until either loss or RTT
-degrades — both matter, since a large buffer trades one for the other.
+Find the usable rate by starting low and increasing until **either** loss or RTT
+degrades. Both matter: a buffer large enough to absorb an overshoot converts loss
+into latency, so watching only the loss counter will tell you everything is fine
+while queueing delay climbs into seconds.
 
 ## REST API
 
@@ -308,6 +423,7 @@ degrades — both matter, since a large buffer trades one for the other.
 | `/api/stats/start` | POST | Reset counters and start; optionally override settings |
 | `/api/stats/stop` | POST | Stop the sender and/or receiver |
 | `/api/stats/peer` | GET | Proxies the receiver's stats (sender only) |
+| `/q/metrics` | GET | Prometheus metrics |
 
 `/api/stats/start` accepts an optional JSON body; omitted fields keep their
 current value. This changes the run **without** a pod restart, which is what
@@ -321,7 +437,6 @@ curl -X POST -H 'Content-Type: application/json' \
 
 Starting from the sender also resets the receiver, so both ends count the same
 run.
-| `/q/metrics` | GET | Prometheus metrics |
 
 ## Wire Format
 
