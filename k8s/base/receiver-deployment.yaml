@@ -40,7 +40,10 @@ spec:
               cpu: "250m"
               memory: 256Mi
             limits:
-              cpu: "1"
+              # The receive loop alone consumes ~1 core; a 1-CPU limit would leave
+              # no headroom for JIT, GC or the HTTP endpoint and make throttling a
+              # confound in every measurement.
+              cpu: "2"
               memory: 512Mi
 ---
 apiVersion: v1

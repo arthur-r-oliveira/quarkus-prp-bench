@@ -12,6 +12,7 @@ import org.jboss.logging.Logger;
 public class ReceiverService {
 
     private static final Logger LOG = Logger.getLogger(ReceiverService.class);
+    private static final int LARGE_RECEIVE_BUFFER_WARN_BYTES = 256 * 1024;
 
     private final BenchConfig config;
     private final BenchMetrics metrics;
@@ -32,8 +33,20 @@ public class ReceiverService {
         }
         LOG.infof("Starting RECEIVER on %s:%d", config.bindAddress(), config.dataPort());
 
-        socket = vertx.createDatagramSocket(new DatagramSocketOptions()
-                .setReceiveBufferSize(config.receiveBufferBytes()));
+        var options = new DatagramSocketOptions();
+        int rcvbuf = config.receiveBufferBytes();
+        if (rcvbuf > 0) {
+            // Vert.x applies this to Netty's receive-buffer allocator too, so every
+            // read allocates and zeroes a buffer this large. Left unset, the socket
+            // inherits net.core.rmem_default and Netty keeps its small read buffer.
+            if (rcvbuf > LARGE_RECEIVE_BUFFER_WARN_BYTES) {
+                LOG.warnf("receiveBufferBytes=%d also sizes Netty's per-read buffer; "
+                        + "expect severely reduced throughput. Prefer 0 and tune "
+                        + "net.core.rmem_default on the node.", rcvbuf);
+            }
+            options.setReceiveBufferSize(rcvbuf);
+        }
+        socket = vertx.createDatagramSocket(options);
 
         int ackEvery = Math.max(1, config.ackSampleRate());
 
@@ -52,9 +65,9 @@ public class ReceiverService {
                             socket.send(ack, config.ackPort(), packet.sender().host());
                         }
                     });
-                    LOG.infof("Receiver bound to %s:%d (rcvbuf requested %d B, ACK every %d pkt)",
+                    LOG.infof("Receiver bound to %s:%d (rcvbuf %s, ACK every %d pkt)",
                             config.bindAddress(), config.dataPort(),
-                            config.receiveBufferBytes(), ackEvery);
+                            rcvbuf > 0 ? rcvbuf + " B" : "kernel default", ackEvery);
                 })
                 .onFailure(t -> LOG.errorf(t, "Failed to bind receiver on %s:%d",
                         config.bindAddress(), config.dataPort()));

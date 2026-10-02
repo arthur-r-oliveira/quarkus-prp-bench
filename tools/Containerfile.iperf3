@@ -1,0 +1,9 @@
+# Control-test image: a non-JVM UDP load generator used to establish what the
+# PRP path itself can sustain, independent of the benchmark application.
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+
+RUN microdnf install -y iperf3 iproute net-tools \
+    && microdnf clean all
+
+ENTRYPOINT ["/bin/sh", "-c"]
+CMD ["sleep infinity"]

@@ -106,20 +106,32 @@ the send rate dropped RTT by three orders of magnitude with loss unchanged.
 If RTT sits far above your ping time, you are over capacity no matter what the
 loss counter says.
 
-### Sizing the receive buffer
+### Sizing the receive buffer — do not set it in the application
 
-A socket buffer absorbs **bursts**. It cannot fix a consumer that is persistently
-slower than the producer.
+**`PRP_BENCH_RECEIVE_BUFFER_BYTES` defaults to `0`, meaning "don't set it", and
+that is almost always correct.** Raise `net.core.rmem_default` on the node (the
+bundled TuneD profile does this) instead of setting a value here.
 
-Measured on this setup: raising the buffer from 208 KB to 128 MB made throughput
-dramatically *worse* — the receiver fell to roughly 20 packets/sec. The oversized
-buffer converted bounded packet loss into an undrainable backlog that exhausted
-the pod's heap, and the latency figures became meaningless because the receiver
-was echoing timestamps from packets queued minutes earlier.
+The reason is a sharp edge in Vert.x: `DatagramSocketOptions.setReceiveBufferSize()`
+sizes **Netty's per-read buffer allocator** as well as `SO_RCVBUF`. Ask for an
+8 MB socket buffer and Netty allocates *and zero-fills* an 8 MB direct buffer on
+every single read. Above Netty's 4 MB chunk size it cannot even pool them, so each
+packet costs a fresh `allocateDirect` plus a full `memset`.
 
-The default of 8 MB is about 300 ms of headroom at 50k packets/sec. If loss
-persists at that size, the answer is to lower the offered rate or make the
-receive path cheaper — not to raise the buffer again.
+Measured directly, at a constant 10,000 msg/s offered load:
+
+| `RECEIVE_BUFFER_BYTES` | Throughput |
+|---|---|
+| 8 MB | 1,966 pkt/s |
+| 256 KB | **9,986 pkt/s** |
+| 64 KB | 9,471 pkt/s |
+
+A profile of the receive thread showed 12 of 12 samples in
+`Unsafe.setMemory0` under `PoolArena.allocateHuge` — the zero-fill, nothing else.
+
+So the intuition that "a bigger buffer absorbs bursts" is right about the kernel
+socket buffer and badly wrong about this knob. Leave it at `0`, and size the
+kernel's buffer via sysctl where it has no effect on the read path.
 
 ### Reducing receiver cost
 
@@ -140,13 +152,14 @@ nothing:
 The knobs are retained because they are cheap and reduce needless work, but they
 are not the lever for throughput.
 
-## Known limitation: receiver throughput ceiling
+## Case study: finding a 15x throughput regression
 
-The receiver saturates at roughly **1,800 packets/sec**, far below what a Vert.x
-UDP consumer should manage. Offered load above that is dropped by the kernel
-regardless of buffer size. This ceiling is measured but **not yet explained**.
+The receiver once saturated at roughly **1,800 packets/sec**, far below what a
+Vert.x UDP consumer should manage. The cause turned out to be the
+`setReceiveBufferSize` coupling described above — but four plausible explanations
+were eliminated first, and the way they were eliminated is the useful part.
 
-What has been ruled out, each by direct measurement:
+Ruled out, each by direct measurement:
 
 | Hypothesis | Evidence against |
 |---|---|
@@ -156,19 +169,49 @@ What has been ruled out, each by direct measurement:
 | GC pressure | `jvm_gc_overhead` 0.09%, heap near-empty, 41 minor GCs |
 | CPU throttling | 10 throttled periods out of 1,129; 0.18 s total |
 
-What is known: a single `vert.x-eventloop` thread consumes ~100% of one core,
-**97% of it user time** rather than system time, which points at in-process work
-rather than the kernel or syscalls. Profiling that thread (JFR or async-profiler)
-is the next step.
+Every one of those was true and every one was misleading. GC was clean *because*
+the buffers were direct and off-heap; CPU time was 97% user *because* a `memset`
+is pure userspace work. Both exonerating signals were fingerprints of the bug.
 
-> **These numbers come from virtual machines, not baremetal.** The figures above
-> were measured with both SNOs running as KVM guests on a single host, so the
-> "PRP link" between them is a virtualised path and the two nodes share physical
-> CPUs and NICs. The host itself was not saturated (72 threads, load ~9.5, 8 vCPU
-> per guest), so this is not simple CPU starvation — but a virtio datapath and
-> software PRP duplicate-discard are both plausible contributors that would not
-> apply on real hardware. **Treat ~1,800 pkt/s as a property of this lab, not of
-> the tool.** Re-measure on baremetal before drawing conclusions.
+**What actually found it, in two steps:**
+
+*A non-JVM baseline first.* `iperf3` over the same link with the same 272-byte
+datagrams sustained **75,633 pkt/s at 0% loss**, which exonerated the network,
+the virtualised datapath and the hardware in one measurement — and proved the
+fault was ours, turning an open question into a bounded one.
+
+| iperf3 offered | Datagrams | Loss |
+|---|---|---|
+| ~10k pps | 150,271 | 0% |
+| ~50k pps | 749,996 | 0% |
+| unlimited → 75,633 pps | 1,134,500 | 0% |
+
+*Then a thread dump, which beat reaching for a profiler.* Twelve samples half a
+second apart put 12 of 12 on one stack — `Unsafe.setMemory0` beneath
+`PoolArena.allocateHuge`. `jcmd` ships in `ubi8/openjdk-17-runtime`, so this
+attaches to a running pod with no rebuild, env var, or restart:
+
+```bash
+for i in $(seq 12); do
+  oc exec -n prp-bench deploy/prp-receiver -- jcmd 1 Thread.print | grep -A12 'vert.x-eventloop-thread-0'
+done
+```
+
+**Result** at identical offered load, after decoupling the read buffer:
+
+| Offered | Before | After | Kernel drops | RTT p50 | Jitter p50 |
+|---|---|---|---|---|---|
+| 10k msg/s | 1,800 pkt/s | **11,452 pkt/s** | 0 | 770 µs | 38 µs |
+| 50k msg/s | 1,800 pkt/s | **26,957 pkt/s** | 15,446 | 950 µs | 17 µs |
+
+At 50k the receiver still trails the offered rate, so ~27k pkt/s is the current
+practical ceiling here — but it is now a real processing limit rather than a
+self-inflicted one.
+
+> **These numbers come from KVM guests on a single host**, so the PRP path is
+> virtualised. The iperf3 baseline shows the path itself carries 75k pkt/s, so the
+> remaining gap is application cost, not the lab. Re-measure on baremetal before
+> treating ~27k pkt/s as a hard figure.
 
 ### A note on RTT across restarts
 

@@ -37,10 +37,14 @@ public interface BenchConfig {
     int ackSampleRate();
 
     /**
-     * Sized to absorb bursts, not sustained overload. An oversized buffer turns
-     * packet loss into an undrainable backlog and GC pressure instead of fixing
-     * anything: 8 MB is roughly 300 ms of headroom at 50k pkt/s.
+     * 0 (default) leaves the socket buffer to the kernel's net.core.rmem_default,
+     * which k8s/node-tuning.yaml raises. Prefer that over setting a value here.
+     * <p>
+     * Vert.x applies this figure to Netty's receive-buffer allocator as well as to
+     * SO_RCVBUF, so a large value makes Netty allocate and zero a buffer of this
+     * size on every read. Measured on the PRP lab: 8 MB gave 1,966 pkt/s against
+     * 9,986 pkt/s at 256 KB. Anything beyond a few tens of KB costs throughput.
      */
-    @WithDefault("8388608")
+    @WithDefault("0")
     int receiveBufferBytes();
 }

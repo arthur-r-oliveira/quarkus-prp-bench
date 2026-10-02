@@ -1,0 +1,82 @@
+# Non-JVM control test for the PRP path.
+#
+# Answers: can any userspace process exceed the ~1,800 pkt/s the benchmark's
+# receiver tops out at? If iperf3 hits the same ceiling the limit is the
+# (virtualised) network path; if it goes much higher the limit is in our code.
+#
+# Deploy the server on the receiver node and the client on the sender node:
+#   oc --kubeconfig=$KC_B apply -f k8s/tools/iperf3.yaml   # runs both; see note
+#   oc --kubeconfig=$KC_A apply -f k8s/tools/iperf3.yaml
+#
+# Both Deployments are applied to each cluster for convenience; only the one
+# matching that node's role is actually driven. hostNetwork is required to reach
+# prp0 directly, matching how prp-bench itself runs.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iperf3-server
+  namespace: prp-bench
+  labels:
+    app: iperf3
+    role: server
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: iperf3
+      role: server
+  template:
+    metadata:
+      labels:
+        app: iperf3
+        role: server
+    spec:
+      hostNetwork: true
+      containers:
+        - name: iperf3
+          image: quay.io/rhn_support_arolivei/iperf3:latest
+          args: ["iperf3 -s"]
+          resources:
+            requests:
+              cpu: "250m"
+              memory: 128Mi
+            limits:
+              cpu: "2"
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iperf3-client
+  namespace: prp-bench
+  labels:
+    app: iperf3
+    role: client
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: iperf3
+      role: client
+  template:
+    metadata:
+      labels:
+        app: iperf3
+        role: client
+    spec:
+      hostNetwork: true
+      containers:
+        - name: iperf3
+          image: quay.io/rhn_support_arolivei/iperf3:latest
+          args: ["sleep infinity"]
+          resources:
+            requests:
+              cpu: "250m"
+              memory: 128Mi
+            limits:
+              cpu: "2"
+              memory: 256Mi
