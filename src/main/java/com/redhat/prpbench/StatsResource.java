@@ -2,6 +2,7 @@ package com.redhat.prpbench;
 
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpMethod;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -17,6 +18,11 @@ import java.util.Map;
 public class StatsResource {
 
     private static final Logger LOG = Logger.getLogger(StatsResource.class);
+
+    /** Overrides for the next run; any null field keeps its current value. */
+    public record StartRequest(Integer messagesPerSecond,
+                               Integer payloadBytes,
+                               Integer durationSeconds) {}
 
     private final BenchConfig config;
     private final BenchMetrics metrics;
@@ -43,6 +49,13 @@ public class StatsResource {
         long total = received + lost;
         double lossPercent = total > 0 ? (lost * 100.0 / total) : 0;
 
+        Map<String, Object> cfg = new LinkedHashMap<>();
+        cfg.put("messagesPerSecond", sender.getMessagesPerSecond());
+        cfg.put("payloadBytes", sender.getPayloadBytes());
+        cfg.put("durationSeconds", sender.getDurationSeconds());
+        cfg.put("remainingSeconds", sender.getRemainingSeconds());
+        cfg.put("targetHost", config.targetHost());
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("mode", config.mode().name());
         result.put("running", config.mode() == BenchConfig.Mode.SENDER
@@ -55,12 +68,18 @@ public class StatsResource {
         result.put("throughputMbps", Math.round(metrics.getLastThroughputMbps() * 100.0) / 100.0);
         result.put("rtt", metrics.getRttPercentilesUs());
         result.put("jitter", metrics.getJitterPercentilesUs());
+        result.put("config", cfg);
         return result;
     }
 
     @POST
     @Path("/start")
-    public Map<String, String> start() {
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Map<String, Object> start(StartRequest req) {
+        if (req != null) {
+            sender.configure(req.messagesPerSecond(), req.payloadBytes(), req.durationSeconds());
+        }
+
         metrics.reset();
         throughputReporter.reset();
         sender.start();
@@ -70,7 +89,11 @@ public class StatsResource {
             resetPeer(config.targetHost());
         }
 
-        return Map.of("status", "started");
+        return Map.of(
+                "status", "started",
+                "messagesPerSecond", sender.getMessagesPerSecond(),
+                "payloadBytes", sender.getPayloadBytes(),
+                "durationSeconds", sender.getDurationSeconds());
     }
 
     @POST
@@ -81,10 +104,28 @@ public class StatsResource {
         return Map.of("status", "stopped");
     }
 
+    /**
+     * Proxies the receiver's stats so the sender dashboard can show latency and
+     * loss on one page. Read together they tell a story neither tells alone: a
+     * run can report zero loss while sitting at seconds of queueing delay.
+     */
+    @GET
+    @Path("/peer")
+    public java.util.concurrent.CompletionStage<String> peer() {
+        return vertx.createHttpClient()
+                .request(HttpMethod.GET, 8080, config.targetHost(), "/api/stats")
+                .compose(req -> req.send().compose(resp -> resp.body()))
+                .map(io.vertx.core.buffer.Buffer::toString)
+                .otherwise(t -> "{\"error\":\"" + t.getClass().getSimpleName() + "\"}")
+                .toCompletionStage();
+    }
+
     private void resetPeer(String peerHost) {
         vertx.createHttpClient()
                 .request(HttpMethod.POST, 8080, peerHost, "/api/stats/start")
-                .compose(req -> req.send())
+                // /start now declares @Consumes(APPLICATION_JSON); a body-less
+                // POST would be rejected with 415.
+                .compose(req -> req.putHeader("Content-Type", "application/json").send("{}"))
                 .onSuccess(resp -> LOG.infof("Peer receiver reset at %s (status %d)", peerHost, resp.statusCode()))
                 .onFailure(t -> LOG.warnf("Could not reset peer at %s: %s", peerHost, t.getMessage()));
     }

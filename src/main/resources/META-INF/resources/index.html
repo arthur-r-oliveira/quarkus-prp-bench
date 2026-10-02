@@ -10,47 +10,55 @@
   --surface:#0d1017;--card:#151921;--border:#252a34;
   --text:#e2e4e9;--text2:#8b8fa3;--text3:#555b6e;
   --blue:#4c9aff;--green:#36b37e;--red:#ff5630;--amber:#ffab00;
-  --purple:#b07cff;--cyan:#00b8d9;
 }
-body{background:var(--surface);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;padding:0;min-height:100vh}
+body{background:var(--surface);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
 
-header{display:flex;align-items:center;gap:16px;padding:16px 24px;border-bottom:1px solid var(--border);background:var(--card)}
+header{display:flex;align-items:center;gap:14px;padding:16px 24px;border-bottom:1px solid var(--border);background:var(--card);flex-wrap:wrap}
 header h1{font-size:18px;font-weight:600;letter-spacing:-.3px}
 .mode-badge{font-size:11px;font-weight:700;letter-spacing:.5px;padding:4px 10px;border-radius:4px;background:#253040;color:var(--blue)}
 .status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .status-dot.running{background:var(--green);box-shadow:0 0 6px var(--green)}
 .status-dot.stopped{background:var(--red)}
 .status-label{font-size:13px;color:var(--text2)}
+.remaining{font-size:12px;color:var(--text3);font-variant-numeric:tabular-nums}
 .spacer{flex:1}
 .ctrl-btn{padding:6px 16px;font-size:13px;font-weight:600;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--text);cursor:pointer;transition:all .15s}
-.ctrl-btn:disabled{opacity:.4;cursor:default;background:transparent;border-color:var(--border);color:var(--text2)}
-.ctrl-btn.stop:hover{background:var(--red);border-color:var(--red);color:#fff}
-.ctrl-btn.start:hover{background:var(--green);border-color:var(--green);color:#fff}
+.ctrl-btn:disabled{opacity:.4;cursor:default}
+.ctrl-btn.stop:hover:not(:disabled){background:var(--red);border-color:var(--red);color:#fff}
+.ctrl-btn.start:hover:not(:disabled){background:var(--green);border-color:var(--green);color:#fff}
 
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:20px 24px}
+.controls{display:flex;gap:16px;align-items:flex-end;padding:16px 24px 0;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--text2)}
+.field input{width:130px;padding:7px 10px;font-size:13px;font-variant-numeric:tabular-nums;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit}
+.field input:focus{outline:none;border-color:var(--blue)}
+.field .hint{font-size:11px;color:var(--text3)}
+#apply-btn{padding:7px 16px;font-size:13px;font-weight:600;border:1px solid var(--blue);border-radius:6px;background:var(--blue);color:#06101f;cursor:pointer}
+#apply-btn:hover{filter:brightness(1.1)}
+.apply-note{font-size:11px;color:var(--text3);padding:6px 24px 0}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:16px 24px}
 .tile{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px}
 .tile-label{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--text2);margin-bottom:6px}
-.tile-value{font-size:28px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.tile-value{font-size:26px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
 .tile-unit{font-size:13px;font-weight:400;color:var(--text2);margin-left:4px}
 .tile-sub{font-size:12px;color:var(--text3);margin-top:4px;font-variant-numeric:tabular-nums}
 
 .charts{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 24px 20px}
-.chart-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;min-height:220px;display:flex;flex-direction:column}
-.chart-card h3{font-size:12px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--text2);margin-bottom:12px}
-.chart-card canvas{flex:1;width:100%;border-radius:4px}
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;min-height:230px;display:flex;flex-direction:column}
+.chart-card h3{font-size:12px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--text2);margin-bottom:10px}
+.chart-card canvas{flex:1;width:100%}
 
-.percentiles{display:grid;grid-template-columns:1fr;gap:0}
-.pct-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
-.pct-row:last-child{border-bottom:none}
-.pct-label{font-size:13px;color:var(--text2)}
-.pct-value{font-size:14px;font-weight:600}
+.peer{padding:0 24px 24px}
+.peer-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px}
+.peer-card h3{font-size:12px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--text2);margin-bottom:4px}
+.peer-card .sub{font-size:11px;color:var(--text3);margin-bottom:12px}
+.peer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:14px}
+.peer-item .k{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.4px}
+.peer-item .v{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:3px}
 
-.chart-card.wide{grid-column:1/-1}
-
-@media(max-width:900px){
-  .charts{grid-template-columns:1fr}
-  .tiles{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
-}
+[hidden]{display:none !important}
+@media(max-width:900px){.charts{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -60,285 +68,334 @@ header h1{font-size:18px;font-weight:600;letter-spacing:-.3px}
   <span class="mode-badge" id="mode">--</span>
   <span class="status-dot" id="status-dot"></span>
   <span class="status-label" id="status-label">Connecting...</span>
+  <span class="remaining" id="remaining"></span>
   <span class="spacer"></span>
   <button class="ctrl-btn stop" id="ctrl-btn" disabled>Stop</button>
 </header>
 
-<div class="tiles">
-  <div class="tile">
-    <div class="tile-label">Sent</div>
-    <div class="tile-value" id="t-sent">--</div>
-    <div class="tile-sub" id="t-sent-rate"></div>
+<!-- Sender-only: runtime parameters -->
+<div class="controls" id="sender-controls" hidden>
+  <div class="field">
+    <label for="f-rate">Rate (msg/s)</label>
+    <input id="f-rate" type="number" min="0" step="500">
   </div>
-  <div class="tile">
-    <div class="tile-label">Received</div>
-    <div class="tile-value" id="t-recv">--</div>
-    <div class="tile-sub" id="t-recv-rate"></div>
+  <div class="field">
+    <label for="f-payload">Payload (bytes)</label>
+    <input id="f-payload" type="number" min="0" max="65000" step="64">
   </div>
-  <div class="tile">
-    <div class="tile-label">Lost</div>
-    <div class="tile-value" id="t-lost" style="color:var(--red)">--</div>
-    <div class="tile-sub" id="t-loss-pct"></div>
+  <div class="field">
+    <label for="f-duration">Duration (s)</label>
+    <input id="f-duration" type="number" min="0" step="10">
+    <span class="hint">0 = unlimited</span>
   </div>
-  <div class="tile">
-    <div class="tile-label">Throughput</div>
-    <div class="tile-value" id="t-thru">--<span class="tile-unit">Mbit/s</span></div>
-  </div>
-  <div class="tile">
-    <div class="tile-label">Bytes Transferred</div>
-    <div class="tile-value" id="t-bytes">--</div>
-  </div>
+  <button id="apply-btn">Apply &amp; Restart</button>
 </div>
+<div class="apply-note" id="apply-note" hidden>Applying resets all counters and starts a fresh run on both ends.</div>
 
-<div class="charts">
-  <div class="chart-card">
-    <h3>Throughput</h3>
-    <canvas id="c-thru"></canvas>
-  </div>
-  <div class="chart-card">
-    <h3>RTT (<span style="text-transform:none">&mu;s</span>)</h3>
-    <div class="percentiles" id="rtt-pcts">
-      <div class="pct-row"><span class="pct-label">p50</span><span class="pct-value">--</span></div>
-      <div class="pct-row"><span class="pct-label">p95</span><span class="pct-value">--</span></div>
-      <div class="pct-row"><span class="pct-label">p99</span><span class="pct-value">--</span></div>
-      <div class="pct-row"><span class="pct-label">p99.9</span><span class="pct-value">--</span></div>
-    </div>
-  </div>
-  <div class="chart-card">
-    <h3>Packets / sec</h3>
-    <canvas id="c-pps"></canvas>
-  </div>
-  <div class="chart-card">
-    <h3>Jitter (<span style="text-transform:none">&mu;s</span>)</h3>
-    <div class="percentiles" id="jitter-pcts">
-      <div class="pct-row"><span class="pct-label">p50</span><span class="pct-value">--</span></div>
-      <div class="pct-row"><span class="pct-label">p95</span><span class="pct-value">--</span></div>
-      <div class="pct-row"><span class="pct-label">p99</span><span class="pct-value">--</span></div>
+<div class="tiles" id="tiles"></div>
+
+<div class="charts" id="charts"></div>
+
+<!-- Sender-only: the receiver's view, so loss and latency are read together -->
+<div class="peer" id="peer-section" hidden>
+  <div class="peer-card">
+    <h3>Receiver (peer)</h3>
+    <div class="sub">Loss and latency must be read together &mdash; zero loss at high RTT means you are over capacity.</div>
+    <div class="peer-grid" id="peer-grid">
+      <div class="peer-item"><div class="k">Received</div><div class="v" id="p-recv">--</div></div>
+      <div class="peer-item"><div class="k">Loss</div><div class="v" id="p-loss">--</div></div>
+      <div class="peer-item"><div class="k">Throughput</div><div class="v" id="p-thru">--</div></div>
+      <div class="peer-item"><div class="k">Jitter p50</div><div class="v" id="p-jit">--</div></div>
     </div>
   </div>
 </div>
 
 <script>
 const HISTORY = 120;
-const thruHistory = [];
-const sentRateHistory = [];
-const recvRateHistory = [];
+const H = {                       // time series, newest last
+  sendRate: [], recvRate: [], thru: [],
+  rtt50: [], rtt95: [], rtt99: [],
+  jit50: [], jit95: [], jit99: []
+};
+let prevSent = null, prevRecv = null, mode = null, layoutBuilt = false;
 
-let prevSent = null;
-let prevRecv = null;
-let pollTimer = null;
+const PCT_COLORS = { p50: '#4c9aff', p95: '#ffab00', p99: '#ff5630' };
 
-function fmt(n) {
-  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'G';
-  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
-  return String(n);
+function fmt(n){
+  if (n == null || isNaN(n)) return '--';
+  if (n >= 1e9) return (n/1e9).toFixed(2)+'G';
+  if (n >= 1e6) return (n/1e6).toFixed(2)+'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1)+'k';
+  return String(Math.round(n));
 }
-
-function fmtUs(v) {
-  if (v == null || isNaN(v)) return '--';
-  if (v >= 1e6) return (v / 1e6).toFixed(1) + ' s';
-  if (v >= 1e3) return (v / 1e3).toFixed(1) + ' ms';
-  return v.toFixed(0) + ' µs';
+function fmtUs(v){
+  if (v == null || isNaN(v) || v === 0) return '--';
+  if (v >= 1e6) return (v/1e6).toFixed(2)+' s';
+  if (v >= 1e3) return (v/1e3).toFixed(2)+' ms';
+  return Math.round(v)+' µs';
 }
-
-function push(arr, val) {
-  arr.push(val);
-  if (arr.length > HISTORY) arr.shift();
-}
-
-function niceMax(v) {
+function push(a,v){ a.push(v); if (a.length > HISTORY) a.shift(); }
+function niceMax(v){
   if (v <= 0) return 1;
-  const mag = Math.pow(10, Math.floor(Math.log10(v)));
-  const norm = v / mag;
-  if (norm <= 1) return mag;
-  if (norm <= 2) return 2 * mag;
-  if (norm <= 5) return 5 * mag;
-  return 10 * mag;
+  const mag = Math.pow(10, Math.floor(Math.log10(v))), n = v/mag;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag;
 }
 
-function drawChart(canvas, series, opts = {}) {
+function drawChart(canvas, series, fmtY){
+  if (!canvas) return;
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
+  if (rect.width === 0) return;
+  canvas.width = rect.width*dpr; canvas.height = rect.height*dpr;
   const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-  const W = rect.width, H = rect.height;
-  const pad = { t: 8, r: 12, b: 24, l: 52 };
-  const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+  ctx.scale(dpr,dpr);
+  const W = rect.width, Ht = rect.height;
+  const legendH = series.length > 1 ? 16 : 0;
+  const pad = { t: 8+legendH, r: 14, b: 22, l: 58 };
+  const cw = W-pad.l-pad.r, ch = Ht-pad.t-pad.b;
 
-  ctx.fillStyle = '#0d1017';
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#151921'; ctx.fillRect(0,0,W,Ht);
 
-  let maxY = 1;
-  for (const s of series) {
-    for (const v of s.data) if (v > maxY) maxY = v;
-  }
-  maxY = niceMax(maxY * 1.1);
+  let maxY = 0;
+  for (const s of series) for (const v of s.data) if (v > maxY) maxY = v;
+  maxY = niceMax(maxY*1.15);
 
-  const gridLines = 4;
-  ctx.strokeStyle = '#1e222d';
-  ctx.lineWidth = 1;
-  ctx.fillStyle = '#555b6e';
-  ctx.font = '11px -apple-system, sans-serif';
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'middle';
-  for (let i = 0; i <= gridLines; i++) {
-    const y = pad.t + ch - (i / gridLines) * ch;
-    const val = (i / gridLines) * maxY;
-    ctx.beginPath();
-    ctx.moveTo(pad.l, y);
-    ctx.lineTo(pad.l + cw, y);
-    ctx.stroke();
-    ctx.fillText(fmt(Math.round(val)), pad.l - 6, y);
+  ctx.strokeStyle = '#1e222d'; ctx.lineWidth = 1;
+  ctx.fillStyle = '#555b6e'; ctx.font = '11px -apple-system, sans-serif';
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let i = 0; i <= 4; i++){
+    const y = pad.t+ch-(i/4)*ch;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+cw,y); ctx.stroke();
+    ctx.fillText(fmtY((i/4)*maxY), pad.l-6, y);
   }
 
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  const maxLen = Math.max(...series.map(s => s.data.length));
-  const labels = [0, Math.floor(maxLen / 2), maxLen - 1];
-  for (const idx of labels) {
+  const n = Math.max(...series.map(s => s.data.length));
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (const idx of [0, Math.floor((n-1)/2), n-1]){
     if (idx < 0) continue;
-    const x = pad.l + (maxLen > 1 ? (idx / (maxLen - 1)) * cw : 0);
-    const secs = maxLen - 1 - idx;
-    ctx.fillText(secs === 0 ? 'now' : `-${secs}s`, x, pad.t + ch + 6);
+    const x = pad.l + (n > 1 ? (idx/(n-1))*cw : 0);
+    const secs = n-1-idx;
+    ctx.fillText(secs === 0 ? 'now' : '-'+secs+'s', x, pad.t+ch+5);
   }
 
-  for (const s of series) {
+  for (const s of series){
     if (s.data.length < 2) continue;
-    ctx.strokeStyle = s.color;
-    ctx.lineWidth = 2;
-    ctx.lineJoin = 'round';
+    ctx.strokeStyle = s.color; ctx.lineWidth = 2; ctx.lineJoin = 'round';
     ctx.beginPath();
-    for (let i = 0; i < s.data.length; i++) {
-      const x = pad.l + (i / (s.data.length - 1)) * cw;
-      const y = pad.t + ch - (s.data[i] / maxY) * ch;
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
+    s.data.forEach((v,i) => {
+      const x = pad.l+(i/(s.data.length-1))*cw;
+      const y = pad.t+ch-(v/maxY)*ch;
+      i ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
+    });
     ctx.stroke();
-
-    const last = s.data[s.data.length - 1];
-    const lx = pad.l + cw;
-    const ly = pad.t + ch - (last / maxY) * ch;
+    const last = s.data[s.data.length-1];
     ctx.fillStyle = s.color;
     ctx.beginPath();
-    ctx.arc(lx, ly, 3, 0, Math.PI * 2);
+    ctx.arc(pad.l+cw, pad.t+ch-(last/maxY)*ch, 3, 0, Math.PI*2);
     ctx.fill();
   }
 
-  if (series.length > 1) {
-    let lx = pad.l + 4;
-    ctx.font = '11px -apple-system, sans-serif';
-    for (const s of series) {
-      ctx.fillStyle = s.color;
-      ctx.fillRect(lx, pad.t, 10, 3);
+  if (series.length > 1){
+    let lx = pad.l;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.font = '11px -apple-system, sans-serif';
+    for (const s of series){
+      ctx.fillStyle = s.color; ctx.fillRect(lx, 7, 10, 3);
       lx += 14;
-      ctx.fillStyle = '#8b8fa3';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      ctx.fillText(s.label + ': ' + fmt(Math.round(s.data[s.data.length - 1] || 0)), lx, pad.t - 2);
-      lx += ctx.measureText(s.label + ': ' + fmt(Math.round(s.data[s.data.length - 1] || 0))).width + 16;
+      const label = s.label+' '+fmtY(s.data[s.data.length-1] || 0);
+      ctx.fillStyle = '#8b8fa3'; ctx.fillText(label, lx, 2);
+      lx += ctx.measureText(label).width + 16;
     }
   }
 }
 
-function updatePercentiles(containerId, data) {
-  const el = document.getElementById(containerId);
-  const rows = el.querySelectorAll('.pct-row');
-  const keys = Object.keys(data || {});
-  rows.forEach((row, i) => {
-    const valEl = row.querySelector('.pct-value');
-    if (keys[i] !== undefined) {
-      valEl.textContent = fmtUs(data[keys[i]]);
-    }
-  });
+const LAYOUTS = {
+  SENDER: {
+    tiles: [
+      ['t-sent','Sent'], ['t-rate','Send rate'], ['t-rtt','RTT p50'], ['t-target','Target']
+    ],
+    charts: [['c-sendrate','Send rate (pkt/s)'], ['c-rtt','RTT percentiles (µs)']]
+  },
+  RECEIVER: {
+    tiles: [
+      ['t-recv','Received'], ['t-lost','Lost'], ['t-loss','Loss'],
+      ['t-thru','Throughput'], ['t-bytes','Bytes']
+    ],
+    charts: [
+      ['c-recvrate','Receive rate (pkt/s)'], ['c-thru','Throughput (Mbit/s)'],
+      ['c-jitter','Jitter percentiles (µs)']
+    ]
+  }
+};
+
+function buildLayout(m){
+  const L = LAYOUTS[m];
+  document.getElementById('tiles').innerHTML = L.tiles.map(([id,label]) =>
+    `<div class="tile"><div class="tile-label">${label}</div>
+       <div class="tile-value" id="${id}">--</div>
+       <div class="tile-sub" id="${id}-sub"></div></div>`).join('');
+  document.getElementById('charts').innerHTML = L.charts.map(([id,title]) =>
+    `<div class="chart-card"><h3>${title}</h3><canvas id="${id}"></canvas></div>`).join('');
+
+  const isSender = m === 'SENDER';
+  document.getElementById('sender-controls').hidden = !isSender;
+  document.getElementById('apply-note').hidden = !isSender;
+  document.getElementById('peer-section').hidden = !isSender;
+  layoutBuilt = true;
 }
 
-async function poll() {
+function redraw(){
+  if (mode === 'SENDER'){
+    drawChart(document.getElementById('c-sendrate'),
+      [{data:H.sendRate, color:'#4c9aff', label:'sent'}], fmt);
+    drawChart(document.getElementById('c-rtt'), [
+      {data:H.rtt50, color:PCT_COLORS.p50, label:'p50'},
+      {data:H.rtt95, color:PCT_COLORS.p95, label:'p95'},
+      {data:H.rtt99, color:PCT_COLORS.p99, label:'p99'}
+    ], v => fmtUs(v));
+  } else if (mode === 'RECEIVER'){
+    drawChart(document.getElementById('c-recvrate'),
+      [{data:H.recvRate, color:'#36b37e', label:'recv'}], fmt);
+    drawChart(document.getElementById('c-thru'),
+      [{data:H.thru, color:'#4c9aff', label:'Mbit/s'}], v => v.toFixed(1));
+    drawChart(document.getElementById('c-jitter'), [
+      {data:H.jit50, color:PCT_COLORS.p50, label:'p50'},
+      {data:H.jit95, color:PCT_COLORS.p95, label:'p95'},
+      {data:H.jit99, color:PCT_COLORS.p99, label:'p99'}
+    ], v => fmtUs(v));
+  }
+}
+
+function setText(id,v){ const e = document.getElementById(id); if (e) e.textContent = v; }
+
+async function poll(){
+  let d;
   try {
     const res = await fetch('/api/stats');
     if (!res.ok) throw new Error(res.status);
-    const d = await res.json();
-
-    document.getElementById('mode').textContent = d.mode;
-    const dot = document.getElementById('status-dot');
-    const label = document.getElementById('status-label');
-    const btn = document.getElementById('ctrl-btn');
-    dot.className = 'status-dot ' + (d.running ? 'running' : 'stopped');
-    label.textContent = d.running ? 'Running' : 'Stopped';
-    btn.disabled = false;
-    btn.textContent = d.running ? 'Stop' : 'Start';
-    btn.className = 'ctrl-btn ' + (d.running ? 'stop' : 'start');
-
-    document.getElementById('t-sent').textContent = fmt(d.sent);
-    document.getElementById('t-recv').textContent = fmt(d.received);
-    document.getElementById('t-lost').textContent = fmt(d.lost);
-    document.getElementById('t-thru').innerHTML = d.throughputMbps.toFixed(1) + '<span class="tile-unit">Mbit/s</span>';
-    document.getElementById('t-bytes').textContent = fmt(d.bytesTransferred);
-    document.getElementById('t-loss-pct').textContent = d.lossPercent.toFixed(2) + '% loss';
-
-    const sentRate = prevSent !== null ? d.sent - prevSent : 0;
-    const recvRate = prevRecv !== null ? d.received - prevRecv : 0;
-    prevSent = d.sent;
-    prevRecv = d.received;
-
-    document.getElementById('t-sent-rate').textContent = fmt(sentRate) + '/s';
-    document.getElementById('t-recv-rate').textContent = fmt(recvRate) + '/s';
-
-    push(thruHistory, d.throughputMbps);
-    push(sentRateHistory, sentRate);
-    push(recvRateHistory, recvRate);
-
-    drawChart(document.getElementById('c-thru'), [
-      { data: thruHistory, color: '#4c9aff', label: 'Mbit/s' }
-    ]);
-
-    drawChart(document.getElementById('c-pps'), [
-      { data: sentRateHistory, color: '#8b8fa3', label: 'sent' },
-      { data: recvRateHistory, color: '#36b37e', label: 'recv' }
-    ]);
-
-    updatePercentiles('rtt-pcts', d.rtt);
-    updatePercentiles('jitter-pcts', d.jitter);
-
+    d = await res.json();
   } catch (e) {
-    document.getElementById('status-label').textContent = 'Connection lost';
+    setText('status-label','Connection lost');
     document.getElementById('status-dot').className = 'status-dot stopped';
+    return;
   }
+
+  if (d.mode !== mode){ mode = d.mode; buildLayout(mode); }
+  if (!layoutBuilt) return;
+
+  setText('mode', d.mode);
+  document.getElementById('status-dot').className = 'status-dot '+(d.running?'running':'stopped');
+  setText('status-label', d.running ? 'Running' : 'Stopped');
+  const rem = d.config ? d.config.remainingSeconds : -1;
+  setText('remaining', (d.running && rem >= 0) ? rem+'s left' : '');
+
+  const btn = document.getElementById('ctrl-btn');
+  btn.disabled = false;
+  btn.textContent = d.running ? 'Stop' : 'Start';
+  btn.className = 'ctrl-btn '+(d.running?'stop':'start');
+
+  const sentRate = prevSent !== null ? Math.max(0, d.sent-prevSent) : 0;
+  const recvRate = prevRecv !== null ? Math.max(0, d.received-prevRecv) : 0;
+  prevSent = d.sent; prevRecv = d.received;
+
+  const rtt = d.rtt || {}, jit = d.jitter || {};
+  push(H.sendRate, sentRate); push(H.recvRate, recvRate); push(H.thru, d.throughputMbps);
+  push(H.rtt50, rtt.p50||0); push(H.rtt95, rtt.p95||0); push(H.rtt99, rtt.p99||0);
+  push(H.jit50, jit.p50||0); push(H.jit95, jit.p95||0); push(H.jit99, jit.p99||0);
+
+  if (mode === 'SENDER'){
+    setText('t-sent', fmt(d.sent));
+    setText('t-sent-sub', d.sent.toLocaleString()+' pkt');
+    setText('t-rate', fmt(sentRate));
+    setText('t-rate-sub', 'target '+fmt(d.config.messagesPerSecond)+'/s');
+    setText('t-rtt', fmtUs(rtt.p50));
+    setText('t-rtt-sub', 'p99 '+fmtUs(rtt.p99));
+    setText('t-target', d.config.targetHost);
+    setText('t-target-sub', d.config.payloadBytes+' B payload');
+    if (document.activeElement.tagName !== 'INPUT') syncFields(d.config);
+  } else {
+    setText('t-recv', fmt(d.received));
+    setText('t-recv-sub', fmt(recvRate)+'/s');
+    setText('t-lost', fmt(d.lost));
+    setText('t-loss', d.lossPercent.toFixed(2)+'%');
+    setText('t-thru', d.throughputMbps.toFixed(1));
+    setText('t-thru-sub', 'Mbit/s');
+    setText('t-bytes', fmt(d.bytesTransferred));
+  }
+  redraw();
+}
+
+function syncFields(cfg){
+  const set = (id,v) => { const e = document.getElementById(id); if (e && e.value === '') e.value = v; };
+  set('f-rate', cfg.messagesPerSecond);
+  set('f-payload', cfg.payloadBytes);
+  set('f-duration', cfg.durationSeconds);
+}
+
+function clearHistory(){
+  Object.values(H).forEach(a => a.length = 0);
+  prevSent = null; prevRecv = null;
+}
+
+async function startRun(body){
+  clearHistory();
+  await fetch('/api/stats/start', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body || {})
+  });
+  await poll();
 }
 
 document.getElementById('ctrl-btn').addEventListener('click', async () => {
   const btn = document.getElementById('ctrl-btn');
-  const isRunning = btn.classList.contains('stop');
+  const wasRunning = btn.classList.contains('stop');
   btn.disabled = true;
-  btn.textContent = isRunning ? 'Stopping...' : 'Starting...';
+  btn.textContent = wasRunning ? 'Stopping...' : 'Starting...';
   try {
-    const endpoint = isRunning ? '/api/stats/stop' : '/api/stats/start';
-    await fetch(endpoint, { method: 'POST' });
-    if (!isRunning) {
-      thruHistory.length = 0;
-      sentRateHistory.length = 0;
-      recvRateHistory.length = 0;
-      prevSent = null;
-      prevRecv = null;
-    }
-  } catch (e) { /* next poll will update status */ }
-  await poll();
+    if (wasRunning) { await fetch('/api/stats/stop',{method:'POST'}); await poll(); }
+    else { await startRun(readFields()); }
+  } catch (e) { /* next poll reconciles */ }
 });
+
+function readFields(){
+  if (mode !== 'SENDER') return {};
+  const num = id => {
+    const e = document.getElementById(id);
+    if (!e || e.value === '') return null;
+    const v = parseInt(e.value, 10);
+    return isNaN(v) ? null : v;
+  };
+  return { messagesPerSecond:num('f-rate'), payloadBytes:num('f-payload'), durationSeconds:num('f-duration') };
+}
+
+document.getElementById('apply-btn').addEventListener('click', async () => {
+  const b = document.getElementById('apply-btn');
+  b.disabled = true; b.textContent = 'Applying...';
+  try {
+    await fetch('/api/stats/stop', {method:'POST'});
+    await startRun(readFields());
+  } catch (e) { /* next poll reconciles */ }
+  b.disabled = false; b.textContent = 'Apply & Restart';
+});
+
+async function pollPeer(){
+  if (mode !== 'SENDER') return;
+  try {
+    const r = await fetch('/api/stats/peer');
+    const p = await r.json();
+    if (p.error){ setText('p-recv','unreachable'); return; }
+    setText('p-recv', fmt(p.received));
+    setText('p-loss', p.lossPercent.toFixed(2)+'%');
+    document.getElementById('p-loss').style.color = p.lossPercent > 1 ? 'var(--red)' : 'var(--text)';
+    setText('p-thru', p.throughputMbps.toFixed(1)+' Mbit/s');
+    setText('p-jit', fmtUs((p.jitter||{}).p50));
+  } catch (e) { setText('p-recv','unreachable'); }
+}
 
 poll();
-pollTimer = setInterval(poll, 1000);
-
-window.addEventListener('resize', () => {
-  drawChart(document.getElementById('c-thru'), [
-    { data: thruHistory, color: '#4c9aff', label: 'Mbit/s' }
-  ]);
-  drawChart(document.getElementById('c-pps'), [
-    { data: sentRateHistory, color: '#8b8fa3', label: 'sent' },
-    { data: recvRateHistory, color: '#36b37e', label: 'recv' }
-  ]);
-});
+setInterval(poll, 1000);
+setInterval(pollPeer, 2000);
+window.addEventListener('resize', redraw);
 </script>
 </body>
 </html>

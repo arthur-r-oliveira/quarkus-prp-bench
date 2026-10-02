@@ -21,6 +21,22 @@ The application runs in two modes on separate hosts:
 - **Receiver** records each packet and sends an ACK back to the sender for RTT measurement.
 - Both expose a REST API on port 8080 for stats and Prometheus metrics.
 
+## Dashboard
+
+Each role serves a dashboard on port 8080 that shows only the metrics it actually
+measures, rather than padding both pages with zeros:
+
+| | Sender | Receiver |
+|---|---|---|
+| Tiles | Sent, send rate, RTT p50, target | Received, lost, loss %, throughput, bytes |
+| Charts | Send rate, RTT p50/p95/p99 | Receive rate, throughput, jitter p50/p95/p99 |
+| Controls | Rate / payload / duration, Apply & Restart | — |
+
+The sender page also carries a **Receiver (peer)** panel fed by `/api/stats/peer`,
+so loss and latency appear together on one screen. That pairing is deliberate: a
+run can report zero loss while sitting at seconds of queueing delay, and seeing
+only one of the two numbers hides it.
+
 ## Metrics
 
 | Metric | Description |
@@ -288,8 +304,23 @@ degrades — both matter, since a large buffer trades one for the other.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/stats` | GET | Current benchmark statistics |
+| `/api/stats` | GET | Current statistics, plus a `config` block with the live settings |
+| `/api/stats/start` | POST | Reset counters and start; optionally override settings |
 | `/api/stats/stop` | POST | Stop the sender and/or receiver |
+| `/api/stats/peer` | GET | Proxies the receiver's stats (sender only) |
+
+`/api/stats/start` accepts an optional JSON body; omitted fields keep their
+current value. This changes the run **without** a pod restart, which is what
+makes a rate sweep practical:
+
+```bash
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"messagesPerSecond":20000,"payloadBytes":512,"durationSeconds":30}' \
+  http://<sender>:8080/api/stats/start
+```
+
+Starting from the sender also resets the receiver, so both ends count the same
+run.
 | `/q/metrics` | GET | Prometheus metrics |
 
 ## Wire Format
