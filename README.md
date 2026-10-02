@@ -7,19 +7,26 @@ A UDP benchmarking tool for Parallel Redundancy Protocol (PRP) networks, built w
 The application runs in two modes on separate hosts:
 
 ```
-  SNO-A (10.10.10.1)              PRP Network              SNO-B (10.10.10.2)
- ┌──────────────────┐          ┌───────────┐          ┌──────────────────┐
- │     SENDER       │  UDP :9200  │           │          │    RECEIVER      │
- │                  ├────────────►│   prp0    ├─────────►│                  │
- │  Sends packets   │          │           │          │  Receives packets│
- │  at configured   │◄────────────┤           │◄─────────┤  and sends ACKs  │
- │  rate            │  ACK :9201  │           │          │                  │
- └──────────────────┘          └───────────┘          └──────────────────┘
+   SNO-A (10.10.10.1)                                  SNO-B (10.10.10.2)
+  ┌─────────────────────┐                             ┌─────────────────────┐
+  │       SENDER        │ ──── UDP data :9200 ──────► │      RECEIVER       │
+  │   paced send loop   │ ◄─── UDP ACK  :9201 ─────── │   counts + ACKs     │
+  └──────────┬──────────┘                             └──────────┬──────────┘
+             │                                                   │
+          ┌──┴──┐          LAN A (enp6s0)                     ┌──┴──┐
+          │prp0 ├─────────────────────────────────────────────┤prp0 │
+          │     ├─────────────────────────────────────────────┤     │
+          └─────┘          LAN B (enp7s0)                     └─────┘
 ```
 
 - **Sender** transmits UDP packets at a configurable rate with sequence numbers and nanosecond timestamps.
 - **Receiver** records each packet and sends an ACK back to the sender for RTT measurement.
 - Both expose a REST API on port 8080 for stats and Prometheus metrics.
+
+The `prp0` device duplicates every frame across both LANs; the receiver keeps the
+first copy to arrive and discards the second. That is what gives PRP zero failover
+time — and also why a dead LAN is invisible from the application. See
+[Host and PRP link metrics](#host-and-prp-link-metrics).
 
 ## Why zero loss matters here
 
@@ -72,11 +79,41 @@ measures, rather than padding both pages with zeros:
 | Tiles | Sent, send rate, RTT p50, target | Received, lost, loss %, throughput, bytes |
 | Charts | Send rate, RTT p50/p95/p99 | Receive rate, throughput, jitter p50/p95/p99 |
 | Controls | Rate / payload / duration, Apply & Restart | — |
+| Host & PRP link | yes | yes |
 
 The sender page also carries a **Receiver (peer)** panel fed by `/api/stats/peer`,
 so loss and latency appear together on one screen. That pairing is deliberate: a
 run can report zero loss while sitting at seconds of queueing delay, and seeing
 only one of the two numbers hides it.
+
+Both pages carry the **Host & PRP link** panel, since kernel-level loss and LAN
+redundancy matter whichever end you are looking at.
+
+Everything refreshes once per second; the peer panel every two. Charts hold a
+rolling two-minute window and reset when a new run starts.
+
+### Sender
+
+![Sender dashboard](docs/dashboard-sender.png)
+
+Captured during a live 8,000 msg/s run. Worth noting: **send rate 8.0k matches
+the 8.0k target** — the pacing is honest, which was not always true (see the
+lessons below). The **Receiver (peer)** panel at the bottom reports the far end's
+0.00% loss next to this end's RTT, so both halves of the health picture are on
+one screen.
+
+The per-LAN counters read 83 pkt/s rather than 8,000 because on the *sender* the
+receive direction carries only the sampled ACKs — 1-in-100 of 8,000.
+
+### Receiver
+
+![Receiver dashboard](docs/dashboard-receiver.png)
+
+The same run from the other end: 0 lost, 0.00% loss, jitter p50 31 µs. The useful
+detail is in the **Host & PRP link** panel — LAN A and LAN B both carry 8.0k
+pkt/s, matching the application rate exactly. That three-way agreement between
+the app counter and the two independent kernel counters is the strongest
+confirmation available that the measurement is real and redundancy is intact.
 
 ## Metrics
 
@@ -397,10 +434,14 @@ roughly by how much.
 13. **Cross-check the same quantity from independent sources.** Application
     rate, LAN A and LAN B counters should agree. When they did not, it exposed
     an API that reported a new send rate while still transmitting the old one.
+14. **Quarkus serves static resources as `immutable, max-age=24h`.** A redeployed
+    dashboard kept rendering the previous build with no error anywhere — the
+    server was correct and the browser simply never revalidated. Disabled via
+    `quarkus.http.static-resources.caching-enabled=false`.
 
 **On PRP specifically**
 
-14. **Redundancy failure is silent.** PRP hides a dead LAN by design, so a
+15. **Redundancy failure is silent.** PRP hides a dead LAN by design, so a
     perfect-looking benchmark can be running with no protection left. Monitor
     the slave interfaces, not just the PRP device.
 
