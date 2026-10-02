@@ -89,6 +89,19 @@ orders of magnitude apart. It tells you the link is up, nothing more.
 from `ss` against `PRP_BENCH_RECEIVE_BUFFER_BYTES`. If they differ, `rmem_max` is
 clamping you.
 
+**4. Zero loss is not the same as healthy.** A buffer large enough to absorb an
+overshoot hides it as latency instead of loss. Always read loss and RTT together:
+
+| Offered | Loss | Kernel drops | RTT p50 |
+|---|---|---|---|
+| 50000 msg/s | ~95% | millions | — |
+| 1500 msg/s | **0%** | **0** | **~2.9 s** |
+
+The second row is not a healthy run. The sender was offering slightly more than
+the receiver could drain, and an 8 MB buffer turned that small excess into
+seconds of queueing delay. Textbook bufferbloat. If RTT is orders of magnitude
+above your ping time, you are over capacity no matter what the loss counter says.
+
 ### Sizing the receive buffer
 
 A socket buffer absorbs **bursts**. It cannot fix a consumer that is persistently
@@ -142,8 +155,16 @@ What has been ruled out, each by direct measurement:
 What is known: a single `vert.x-eventloop` thread consumes ~100% of one core,
 **97% of it user time** rather than system time, which points at in-process work
 rather than the kernel or syscalls. Profiling that thread (JFR or async-profiler)
-is the next step; until then, treat ~1,800 pkt/s as the usable ceiling and set
-`PRP_BENCH_MESSAGES_PER_SECOND` accordingly for loss-free runs.
+is the next step.
+
+> **These numbers come from virtual machines, not baremetal.** The figures above
+> were measured with both SNOs running as KVM guests on a single host, so the
+> "PRP link" between them is a virtualised path and the two nodes share physical
+> CPUs and NICs. The host itself was not saturated (72 threads, load ~9.5, 8 vCPU
+> per guest), so this is not simple CPU starvation — but a virtio datapath and
+> software PRP duplicate-discard are both plausible contributors that would not
+> apply on real hardware. **Treat ~1,800 pkt/s as a property of this lab, not of
+> the tool.** Re-measure on baremetal before drawing conclusions.
 
 ### A note on RTT across restarts
 
@@ -162,25 +183,59 @@ podman push quay.io/rhn_support_arolivei/prp-bench:latest
 
 ## Deploying on OpenShift (SNO)
 
-The application uses `hostNetwork: true` to access the PRP interface directly. The default service account needs the `hostnetwork` SCC.
+The application uses `hostNetwork: true` to reach the PRP interface directly, so
+the default service account needs the `hostnetwork` SCC.
+
+### Profiles
+
+| Profile | Path | CPU req/limit | Default rate | Use for |
+|---|---|---|---|---|
+| base (default) | `k8s/base` | 250m / 1 | 50000 msg/s | Constrained or virtualised nodes |
+| baremetal | `k8s/overlays/baremetal` | 4 / 8 | 50000 msg/s | Real hardware |
+
+The base profile is deliberately small so the benchmark runs on a modest VM lab.
+The baremetal overlay raises CPU, memory, and the receive buffer; it does not
+change application behaviour, only headroom.
 
 ```bash
-# Set kubeconfigs
-export KC_A=/path/to/sno-a/auth/kubeconfig
-export KC_B=/path/to/sno-b/auth/kubeconfig
+export KC_A=/path/to/sno-a/auth/kubeconfig   # sender node
+export KC_B=/path/to/sno-b/auth/kubeconfig   # receiver node
 
-# Create namespace on both clusters
-oc --kubeconfig=$KC_A apply -f k8s/namespace.yaml
-oc --kubeconfig=$KC_B apply -f k8s/namespace.yaml
+for KC in $KC_A $KC_B; do
+  oc --kubeconfig=$KC apply -f k8s/base/namespace.yaml
+  oc --kubeconfig=$KC adm policy add-scc-to-user hostnetwork -z default -n prp-bench
+  oc --kubeconfig=$KC apply -f k8s/node-tuning.yaml
+done
 
-# Grant hostnetwork SCC
-oc --kubeconfig=$KC_A adm policy add-scc-to-user hostnetwork -z default -n prp-bench
-oc --kubeconfig=$KC_B adm policy add-scc-to-user hostnetwork -z default -n prp-bench
+# Minimal / virtualised lab
+oc --kubeconfig=$KC_A apply -k k8s/base
+oc --kubeconfig=$KC_B apply -k k8s/base
 
-# Deploy
-oc --kubeconfig=$KC_A apply -f k8s/sender-deployment.yaml
-oc --kubeconfig=$KC_B apply -f k8s/receiver-deployment.yaml
+# Baremetal
+oc --kubeconfig=$KC_A apply -k k8s/overlays/baremetal
+oc --kubeconfig=$KC_B apply -k k8s/overlays/baremetal
 ```
+
+Each cluster receives both Deployments; `PRP_BENCH_MODE` decides which one is
+active, so the idle role costs only an idle JVM. Preview any profile before
+applying with `oc kustomize k8s/overlays/baremetal`.
+
+### Tuning for your hardware
+
+Every parameter is an environment variable, so no rebuild is needed:
+
+```bash
+oc --kubeconfig=$KC_A -n prp-bench set env deployment/prp-sender \
+  PRP_BENCH_MESSAGES_PER_SECOND=20000 PRP_BENCH_PAYLOAD_BYTES=1024
+```
+
+Note that `oc set env` to a value a Deployment already has does **not** trigger a
+rollout. When scripting a sweep, follow it with an explicit
+`oc rollout restart deployment/prp-sender`, or a run will silently measure the
+previous configuration.
+
+Find the usable rate by starting low and increasing until either loss or RTT
+degrades — both matter, since a large buffer trades one for the other.
 
 ## REST API
 

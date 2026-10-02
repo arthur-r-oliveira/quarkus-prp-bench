@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Baremetal profile: the base defaults are deliberately small so the benchmark
+# fits a virtualised lab. On real hardware the receive path is no longer the
+# binding constraint, so give it more CPU and raise the offered rate.
+resources:
+  - ../../base
+
+patches:
+  - path: resources-patch.yaml
+    target:
+      kind: Deployment
+      labelSelector: app=prp-bench
+  - path: sender-rate-patch.yaml

@@ -9,6 +9,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 @ApplicationScoped
@@ -92,7 +93,7 @@ public class BenchMetrics {
     public Map<String, Double> getRttPercentilesUs() {
         Map<String, Double> result = new LinkedHashMap<>();
         for (ValueAtPercentile vp : rttTimer.takeSnapshot().percentileValues()) {
-            result.put(percentileKey(vp.percentile()), vp.value() * 1_000_000);
+            result.put(percentileKey(vp.percentile()), vp.value(TimeUnit.MICROSECONDS));
         }
         return result;
     }

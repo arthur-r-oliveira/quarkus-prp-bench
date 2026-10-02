@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prp-sender
+  namespace: prp-bench
+spec:
+  template:
+    spec:
+      containers:
+        - name: prp-bench
+          env:
+            - name: PRP_BENCH_MESSAGES_PER_SECOND
+              value: "50000"
+            - name: PRP_BENCH_RECEIVE_BUFFER_BYTES
+              value: "33554432"

@@ -1,11 +1,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: prp-receiver
+  name: prp-sender
   namespace: prp-bench
   labels:
     app: prp-bench
-    role: receiver
+    role: sender
 spec:
   replicas: 1
   strategy:
@@ -13,48 +13,58 @@ spec:
   selector:
     matchLabels:
       app: prp-bench
-      role: receiver
+      role: sender
   template:
     metadata:
       labels:
         app: prp-bench
-        role: receiver
+        role: sender
     spec:
+      # hostNetwork gives the pod direct access to the host's prp0
+      # interface (10.10.10.x) without needing Multus/macvlan.
       hostNetwork: true
       containers:
         - name: prp-bench
           image: quay.io/rhn_support_arolivei/prp-bench:latest
           env:
             - name: PRP_BENCH_MODE
-              value: RECEIVER
-            - name: PRP_BENCH_BIND_ADDRESS
+              value: SENDER
+            - name: PRP_BENCH_TARGET_HOST
               value: "10.10.10.2"
+            - name: PRP_BENCH_BIND_ADDRESS
+              value: "10.10.10.1"
+            - name: PRP_BENCH_MESSAGES_PER_SECOND
+              value: "50000"
+            - name: PRP_BENCH_PAYLOAD_BYTES
+              value: "256"
+            - name: PRP_BENCH_DURATION_SECONDS
+              value: "60"
           ports:
             - containerPort: 8080
               name: http
-            - containerPort: 9200
-              name: data
+            - containerPort: 9201
+              name: ack
               protocol: UDP
           resources:
             requests:
-              cpu: "1"
+              cpu: "250m"
               memory: 256Mi
             limits:
-              cpu: "2"
+              cpu: "1"
               memory: 512Mi
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: prp-receiver
+  name: prp-sender
   namespace: prp-bench
   labels:
     app: prp-bench
-    role: receiver
+    role: sender
 spec:
   selector:
     app: prp-bench
-    role: receiver
+    role: sender
   ports:
     - name: http
       port: 8080

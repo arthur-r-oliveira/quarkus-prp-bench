@@ -24,7 +24,6 @@ public class SenderService {
     private boolean initialized = false;
     private DatagramSocket socket;
     private byte[] payload;
-    private int batchSize;
     private long sendTimerId = -1;
     private long durationTimerId = -1;
 
@@ -48,7 +47,6 @@ public class SenderService {
 
         socket = vertx.createDatagramSocket(new DatagramSocketOptions());
         payload = new byte[config.payloadBytes()];
-        batchSize = config.messagesPerSecond() / 1000 + 1;
 
         socket.listen(config.ackPort(), config.bindAddress())
                 .onSuccess(s -> {
@@ -71,12 +69,23 @@ public class SenderService {
         sequence.set(0);
         running = true;
 
+        // Carry the fractional remainder between ticks. Rounding per tick instead
+        // (rate/1000 + 1) overshoots badly at low rates -- 1500 msg/s became 2000 --
+        // which silently pushes the link past capacity and shows up as latency
+        // rather than as an obviously wrong send rate.
+        final double perTick = config.messagesPerSecond() / 1000.0;
+        final double[] credit = {0.0};
+
         sendTimerId = vertx.setPeriodic(1, id -> {
             if (!running) {
                 vertx.cancelTimer(id);
                 return;
             }
-            for (int i = 0; i < batchSize; i++) {
+            credit[0] += perTick;
+            int batch = (int) credit[0];
+            credit[0] -= batch;
+
+            for (int i = 0; i < batch; i++) {
                 long seq = sequence.getAndIncrement();
                 var buf = PrpMessage.encode(seq, System.nanoTime(), payload);
                 socket.send(buf, config.dataPort(), config.targetHost())
