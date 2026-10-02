@@ -46,6 +46,10 @@ public class BenchMetrics {
         jitterSummary = DistributionSummary.builder("prp.jitter.us")
                 .description("Inter-arrival jitter in microseconds")
                 .publishPercentiles(0.5, 0.95, 0.99)
+                // Without a ceiling the backing HdrHistogram spans the full long
+                // range and allocates buckets to match. One second is far above
+                // any meaningful inter-arrival gap here.
+                .maximumExpectedValue(1_000_000.0)
                 .register(registry);
 
         throughputSummary = DistributionSummary.builder("prp.throughput.mbps")
