@@ -114,11 +114,16 @@ Typical IEC 61850 examples (motivation for *what to measure* — this bench does
 
 | Traffic | Rate | Deadline | Recovery if lost |
 |---|---|---|---|
-| GOOSE (protection trip) | Event-driven, burst-repeated | 3–4 ms | None — it is multicast, fire-and-forget |
+| GOOSE (protection trip) | Event-driven, burst-repeated | 3–4 ms | None for *this* frame — the burst helps the next copy, not the one that missed its window |
 | Sampled Values (SV) | 4,000–4,800 frames/sec, continuous | Per-sample | None — the sample is simply gone |
 
-Real GOOSE/SV are Layer 2 / UDP **multicast** streams. There is no TCP
-underneath, no ACK, no retry. A dropped Sampled Values frame is a hole in the
+Real GOOSE and SV are raw **Layer 2 Ethernet multicast** — EtherType `0x88B8`
+and `0x88BA`, no IP, no UDP, no ports. (Only the routable R-GOOSE / R-SV
+variants of IEC 61850-90-5 run over UDP multicast, and those are a WAN story.)
+There is no TCP underneath and no acknowledgement. GOOSE does repeat a changed
+value in a burst, but repetition is not retransmission: it covers the *next*
+copy, and a protection trip that misses its 3–4 ms window has already missed it.
+A dropped Sampled Values frame has no repetition at all — it is a hole in the
 current and voltage waveform a protection algorithm is integrating; enough holes
 and the relay either fails to trip on a real fault or trips on a phantom one.
 Both outcomes are safety-relevant, and neither shows up as an error anywhere —
@@ -222,6 +227,20 @@ The only evidence is that one slave interface stopped counting. The two LANs are
 discovered automatically from the `lower_*` links on the PRP device
 (`PRP_BENCH_PRP_INTERFACE`, default `prp0`), so no configuration is needed.
 
+**The standard defines a stricter mechanism, and this tool deliberately does not
+use it.** IEC 62439-3 has every DANP multicast a supervision frame (EtherType
+`0x88FB`) once per `LifeCheckInterval`; peers keep a node table with per-node
+RxA / RxB counts and age entries out after `NodeForgetTime`. That table answers
+a sharper question than ours: not just "is a LAN dead?" but "dead toward *which*
+peer?" — which is what you want in a plant with more than two nodes. The Linux
+`hsr` driver exposes it at `/sys/kernel/debug/hsr/prp0/node_table`.
+
+Reading it needs debugfs mounted and privileges this pod does not request,
+whereas slave rx rates from `/sys/class/net` need nothing beyond the
+`hostNetwork` the tool already uses. So the counters here are a cheap proxy for
+a richer signal that is sitting on the node. In a two-node lab they agree; reach
+for the node table when the proxy says a LAN is gone and you need to know whose.
+
 A healthy link looks like this — the two LANs track each other almost exactly,
 because PRP sends every frame down both:
 
@@ -274,7 +293,7 @@ All settings are configured via environment variables (prefix `PRP_BENCH_`):
 | `PRP_BENCH_BIND_ADDRESS` | `0.0.0.0` | Local bind address |
 | `PRP_BENCH_DATA_PORT` | `9200` | UDP port for benchmark traffic |
 | `PRP_BENCH_ACK_PORT` | `9201` | UDP port for ACK responses |
-| `PRP_BENCH_PAYLOAD_BYTES` | `256` | Payload size per packet |
+| `PRP_BENCH_PAYLOAD_BYTES` | `256` | Payload size per packet. Not clamped — on a PRP link stay inside the 1496-octet RCT budget, see [Wire Format](#wire-format) |
 | `PRP_BENCH_MESSAGES_PER_SECOND` | `50000` | Target send rate |
 | `PRP_BENCH_DURATION_SECONDS` | `0` | Test duration (0 = unlimited) |
 | `PRP_BENCH_ACK_SAMPLE_RATE` | `100` | ACK every Nth packet for RTT sampling (1 = every packet) |
@@ -635,3 +654,21 @@ Each UDP packet is `16 + payloadBytes` bytes:
 | 0 | 8 bytes | Sequence number (long) |
 | 8 | 8 bytes | Sender timestamp in nanoseconds (long) |
 | 16 | N bytes | Zero-filled payload |
+
+### Payload size on a PRP link
+
+PRP appends a Redundancy Control Trailer to every frame, so IEC 62439-3 requires
+a DAN using the RCT to be configured for a **maximum payload of 1496 octets**
+rather than the usual 1500 — otherwise the trailer pushes the frame past the
+IEEE 802.3 limit. The kernel adds the RCT below `prp0`, so this application
+never sees it, but the budget is still yours to respect:
+
+```
+payloadBytes + 16 (bench header) + 8 (UDP) + 20 (IPv4)  ≤  1496
+                                          →  payloadBytes ≤ 1452
+```
+
+`PRP_BENCH_PAYLOAD_BYTES` is **not** clamped to this. Set it higher and you are
+measuring IP fragmentation or oversize-frame handling rather than the PRP path,
+and the numbers stop being comparable with smaller payloads. The default of 256
+is far inside the budget; the figure only matters when sweeping payload size.

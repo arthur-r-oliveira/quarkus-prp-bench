@@ -8,15 +8,18 @@ For a hands-on “fail one LAN” walkthrough (Industrial Edge demo), see [demo-
 
 **Books referenced (common IT-degree editions):**
 
-| Book | Authors | Themes used here |
-|------|---------|------------------|
-| *Computer Networks* | Tanenbaum & Wetherall | Layers, UDP vs TCP, delay/loss/jitter, redundancy |
-| *Modern Operating Systems* | Tanenbaum & Bos | Processes vs event I/O, sockets, kernel buffers, `/proc` |
-| *Distributed Systems* | Tanenbaum & Van Steen | Failure models, clocks, sampling, observability |
+| Book | Authors and edition | Themes used here |
+|------|---------------------|------------------|
+| *Computer Networks* | Tanenbaum, Feamster & Wetherall, [6th ed. (2021)](https://www.pearson.com/en-us/subject-catalog/p/computer-networks/P200000003188/9780137523214) — the widely held 5th ed. (2011) is Tanenbaum & Wetherall | Layers, UDP vs TCP, delay/loss/jitter, redundancy |
+| *Modern Operating Systems* | Tanenbaum & Bos, [5th ed. (2022)](https://www.pearson.com/en-us/subject-catalog/p/modern-operating-systems/P200000003295/9780137618880) or 4th ed. (2014) | Processes vs event I/O, sockets, kernel buffers, `/proc` |
+| *Distributed Systems* | Van Steen & Tanenbaum, 4th ed. (2023) — **[free PDF from the authors](https://www.distributed-systems.net/index.php/books/ds4/)**, with slides and code | Failure models, clocks, sampling, observability |
 
-We cite **topics and chapter themes**, not long quotations. Open your edition and search the index for the italicized keywords below.
+Either edition of the first two works for everything below; where a chapter
+number would differ between editions, we name the topic instead. We cite
+**topics and chapter themes**, not long quotations — open your edition and
+search the index for the italicized keywords below.
 
-*Further reading:* *Structured Computer Organization* (Tanenbaum) is less central here; skim it only if you want the hardware layering story behind NICs and buses.
+*Further reading:* *Structured Computer Organization* (Tanenbaum & Austin) is less central here; skim it only if you want the hardware layering story behind NICs and buses.
 
 ---
 
