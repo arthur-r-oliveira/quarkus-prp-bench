@@ -2,6 +2,8 @@
 
 A UDP benchmarking tool for Parallel Redundancy Protocol (PRP) networks, built with Quarkus and Vert.x. Measures throughput, packet loss, round-trip time (RTT), and inter-arrival jitter between two endpoints connected over a PRP link.
 
+**For students:** see [docs/student-guide-tanenbaum.md](docs/student-guide-tanenbaum.md) for how the design maps to topics in Tanenbaum’s *Computer Networks*, *Modern Operating Systems*, and *Distributed Systems*.
+
 ## Architecture
 
 The application runs in two modes on separate hosts:
