@@ -10,3 +10,6 @@ bin/
 *.jar
 !.mvn/wrapper/maven-wrapper.jar
 .DS_Store
+
+# Internal self-assessment; keep local, do not publish
+docs/prp-hsr-compliance-grade.md

@@ -4,6 +4,8 @@ This guide is for IT / Computer Science students. It explains **how PRP Bench wo
 
 For deployment, dashboards, and operational debugging, use the project [README](../README.md). This document stays conceptual: theory ↔ code.
 
+For a hands-on “fail one LAN” walkthrough (Industrial Edge demo), see [demo-prp-lan-failure.md](demo-prp-lan-failure.md). The README states what this tool fairly claims today versus roadmap (OPC-UA, HSR).
+
 **Books referenced (common IT-degree editions):**
 
 | Book | Authors | Themes used here |
@@ -29,6 +31,11 @@ We cite **topics and chapter themes**, not long quotations. Open your edition an
 - **Host / kernel** UDP errors and **per-LAN** counters (PRP redundancy health)
 
 PRP sends every frame on **two independent LANs** at once. The receiver keeps the first copy and drops the duplicate, so failover time is **zero**. That matters in operational technology (OT) networks (for example IEC 61850 protection traffic), where retransmission and multi-second reconvergence are not acceptable.
+
+**Important scope notes:**
+
+- This bench drives **unicast UDP**. Real GOOSE/SV are often **multicast**; the README uses them as motivation for *what to measure*, not as a claim that the tool speaks those protocols.
+- **HSR** (ring-based seamless redundancy in the same IEC 62439-3 family) is related in spirit but **not** a first-class story here — default device is `prp0`. Treat HSR demos as unverified until your lab validates `hsr0`.
 
 **Acceptance criteria differ from typical IT benchmarks.** Average throughput alone is almost irrelevant. What matters is zero loss at the offered rate, bounded worst-case latency (p99.9), and low, stable jitter. See the README section *Why zero loss matters here*.
 

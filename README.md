@@ -1,8 +1,40 @@
 # PRP Bench
 
-A UDP benchmarking tool for Parallel Redundancy Protocol (PRP) networks, built with Quarkus and Vert.x. Measures throughput, packet loss, round-trip time (RTT), and inter-arrival jitter between two endpoints connected over a PRP link.
+PRP Bench shows Industrial Edge customers that a Quarkus workload on OpenShift can
+**drive and observe a PRP underlay the way OT cares about it** — zero loss, tail
+latency (p99.9), and LAN redundancy — not just average throughput.
 
-**For students:** see [docs/student-guide-tanenbaum.md](docs/student-guide-tanenbaum.md) for how the design maps to topics in Tanenbaum’s *Computer Networks*, *Modern Operating Systems*, and *Distributed Systems*.
+It is a UDP load generator and measurement tool (Quarkus + Vert.x) between two
+endpoints over a host Parallel Redundancy Protocol (PRP) device, typically
+`prp0`. It reports throughput, packet loss, RTT percentiles, inter-arrival
+jitter, and per-LAN kernel counters so a dead redundant path is visible even
+when the application still looks perfect.
+
+### What this is / is not
+
+| This **is** | This is **not** |
+|-------------|-----------------|
+| UDP load + observability over a host PRP netdev (`prp0`) | A PRP/HSR **certification** or conformance suite |
+| Proof that silent single-LAN failure is detectable | A real **OPC-UA**, DCS, or IEC 61850 GOOSE/SV simulator |
+| OT-style acceptance criteria (loss, p99.9, jitter, `redundancyOk`) | An HSR product showcase (see note below) |
+
+GOOSE/SV and OPC-UA appear in the docs as **motivation and roadmap**. The data
+path today is **unicast UDP** with a simple sequence/timestamp header — not
+multicast GOOSE/SV and not wire-compatible OPC-UA. A synthetic OPC-UA PubSub
+workload is planned; see [docs/opcua-pubsub-synth-plan.md](docs/opcua-pubsub-synth-plan.md).
+
+**HSR:** `PRP_BENCH_PRP_INTERFACE` can point at another netdev (for example
+`hsr0`) if it exposes the same `lower_*` slaves, but HSR ring behaviour is
+**unverified** in this project. Do not lead customer demos with HSR until
+validated in your lab.
+
+### Documentation
+
+| Doc | Purpose |
+|-----|---------|
+| [docs/demo-prp-lan-failure.md](docs/demo-prp-lan-failure.md) | Customer demo: fail one LAN, watch redundancy degrade while app loss stays ~0% |
+| [docs/opcua-pubsub-synth-plan.md](docs/opcua-pubsub-synth-plan.md) | Planned synthetic OPC-UA PubSub–shaped workload (not implemented yet) |
+| [docs/student-guide-tanenbaum.md](docs/student-guide-tanenbaum.md) | How the design maps to Tanenbaum (*Computer Networks*, *Modern OS*, *Distributed Systems*) |
 
 ## Architecture
 
@@ -30,6 +62,20 @@ first copy to arrive and discards the second. That is what gives PRP zero failov
 time — and also why a dead LAN is invisible from the application. See
 [Host and PRP link metrics](#host-and-prp-link-metrics).
 
+## Demo: prove silent LAN failure
+
+The demo that sells PRP on the edge: **application loss stays ~0% while
+redundancy is gone.**
+
+1. Run a paced load; confirm app rate ≈ LAN A ≈ LAN B and `redundancyOk`.
+2. Disable or unplug one PRP slave NIC.
+3. App loss and RTT stay healthy; one LAN shows **degraded** and `redundancyOk`
+   becomes false.
+4. Restore the slave; both LANs track again.
+
+Step-by-step talk track: [docs/demo-prp-lan-failure.md](docs/demo-prp-lan-failure.md).
+Background: [Host and PRP link metrics](#host-and-prp-link-metrics).
+
 ## Why zero loss matters here
 
 PRP (IEC 62439-3) exists because OT networks cannot tolerate the recovery times
@@ -42,20 +88,23 @@ whichever copy arrives first and discards the duplicate. If one LAN fails the
 other already carried the frame, so recovery time is **zero**. Compare RSTP, which
 reconverges in seconds — an eternity for a protection relay.
 
-**The traffic it carries has hard deadlines and no second chance.** Typical
-IEC 61850 payloads on these links:
+**The traffic OT puts on these links has hard deadlines and no second chance.**
+Typical IEC 61850 examples (motivation for *what to measure* — this bench does
+**not** emulate these protocols; it sends paced **unicast UDP**):
 
 | Traffic | Rate | Deadline | Recovery if lost |
 |---|---|---|---|
 | GOOSE (protection trip) | Event-driven, burst-repeated | 3–4 ms | None — it is multicast, fire-and-forget |
 | Sampled Values (SV) | 4,000–4,800 frames/sec, continuous | Per-sample | None — the sample is simply gone |
 
-These are Layer 2 / UDP multicast streams. There is no TCP underneath, no ACK, no
-retry. A dropped Sampled Values frame is a hole in the current and voltage
-waveform a protection algorithm is integrating; enough holes and the relay either
-fails to trip on a real fault or trips on a phantom one. Both outcomes are
-safety-relevant, and neither shows up as an error anywhere — just as a slightly
-wrong answer.
+Real GOOSE/SV are Layer 2 / UDP **multicast** streams. There is no TCP
+underneath, no ACK, no retry. A dropped Sampled Values frame is a hole in the
+current and voltage waveform a protection algorithm is integrating; enough holes
+and the relay either fails to trip on a real fault or trips on a phantom one.
+Both outcomes are safety-relevant, and neither shows up as an error anywhere —
+just as a slightly wrong answer. PRP Bench uses the same *acceptance criteria*
+(loss, tails, jitter) on a simpler unicast path so you can stress and observe
+the PRP underlay without claiming protocol fidelity.
 
 **So the acceptance criteria are different from IT benchmarking.** Average
 throughput is nearly irrelevant. What matters is:
