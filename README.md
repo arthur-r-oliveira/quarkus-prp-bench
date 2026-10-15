@@ -14,9 +14,29 @@ when the application still looks perfect.
 
 | This **is** | This is **not** |
 |-------------|-----------------|
-| UDP load + observability over a host PRP netdev (`prp0`) | A PRP/HSR **certification** or conformance suite |
+| UDP load + observability over a host PRP netdev (`prp0`) | An **IEC 62439-3** (PRP/HSR) **implementation**, certification, or conformance suite |
 | Proof that silent single-LAN failure is detectable | A real **OPC-UA**, DCS, or IEC 61850 GOOSE/SV simulator |
 | OT-style acceptance criteria (loss, p99.9, jitter, `redundancyOk`) | An HSR product showcase (see note below) |
+
+### IEC 62439-3 (PRP / HSR) — how this relates
+
+IEC 62439-3 defines **PRP and HSR at Layer 2** (duplicate discard, RCT/HSR
+tagging, supervision, DANP/DANH behaviour, and so on). That behaviour lives in
+the **kernel, NIC, and switch** behind devices such as `prp0` / `hsr0`.
+
+**PRP Bench does not implement or certify IEC 62439-3.** It sits *above* a
+62439-3 underlay and:
+
+- **exercises** the path with paced UDP load, and
+- **observes** outcomes OT cares about (loss, p99.9 latency, jitter) plus
+  per-LAN counters so loss of *redundancy* is visible even when the application
+  still looks perfect.
+
+Fair customer one-liner:
+
+> PRP Bench does not implement or certify IEC 62439-3. It exercises and observes
+> a 62439-3 PRP underlay the way OT cares about it: seamless failover remains
+> invisible to the app, while we still show when redundancy is gone.
 
 GOOSE/SV and OPC-UA appear in the docs as **motivation and roadmap**. The data
 path today is **unicast UDP** with a simple sequence/timestamp header — not
@@ -26,7 +46,7 @@ workload is planned; see [docs/opcua-pubsub-synth-plan.md](docs/opcua-pubsub-syn
 **HSR:** `PRP_BENCH_PRP_INTERFACE` can point at another netdev (for example
 `hsr0`) if it exposes the same `lower_*` slaves, but HSR ring behaviour is
 **unverified** in this project. Do not lead customer demos with HSR until
-validated in your lab.
+validated in your lab — and never present this tool as HSR-conformant.
 
 ### Documentation
 

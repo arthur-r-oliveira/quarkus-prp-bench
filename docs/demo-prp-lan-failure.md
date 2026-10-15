@@ -15,7 +15,10 @@ This is the primary customer demo for PRP on the edge: application loss can stay
 4. Optional: raise rate until p99.9 climbs — discuss bufferbloat vs loss (OT SLOs vs IT averages).
 5. Roadmap: same underlay can carry OPC-UA PubSub–shaped traffic ([plan](opcua-pubsub-synth-plan.md)); today the load is unicast UDP.
 
-**Do not claim:** PRP/HSR certification, or that this run is real GOOSE/SV/OPC-UA.
+**Do not claim:** IEC 62439-3 (PRP/HSR) implementation or certification, or that
+this run is real GOOSE/SV/OPC-UA. The demo shows *benefits of* a 62439-3 PRP
+underlay under application load — the standard itself is implemented by the
+network stack, not by this tool. See the README section *IEC 62439-3 (PRP / HSR)*.
 
 ---
 

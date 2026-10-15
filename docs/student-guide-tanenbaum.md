@@ -22,7 +22,7 @@ We cite **topics and chapter themes**, not long quotations. Open your edition an
 
 ## 1. What is PRP Bench?
 
-**PRP Bench** is a small Quarkus / Vert.x application that **benchmarks a UDP path over a Parallel Redundancy Protocol (PRP) link** (IEC 62439-3). It runs as either a **sender** or a **receiver** and reports:
+**PRP Bench** is a small Quarkus / Vert.x application that **benchmarks a UDP path over a Parallel Redundancy Protocol (PRP) link**. PRP is specified in **IEC 62439-3**, but this application does **not** implement or certify that standard — the kernel/NIC provide `prp0`; the bench only drives and measures traffic on top. It runs as either a **sender** or a **receiver** and reports:
 
 - Offered / achieved **throughput** (Mbit/s)
 - **Packet loss** (gaps in sequence numbers)

@@ -4,7 +4,7 @@ Status: **planned** (not implemented yet)
 
 This document captures the agreed design for adding an OPC-UA PubSub–**shaped** UDP workload to PRP Bench. It reuses the existing sender/receiver pacing, metrics, dashboard, and PRP host counters. A full OPC-UA stack (e.g. Eclipse Milo) is out of scope for this phase.
 
-The project [README](../README.md) states clearly that **OPC-UA is roadmap, not shipped**: today’s data path is unicast UDP for PRP measurement. Do not demo this plan as if the synth workload already exists.
+The project [README](../README.md) states clearly that **OPC-UA is roadmap, not shipped**: today’s data path is unicast UDP for PRP measurement. Do not demo this plan as if the synth workload already exists. The same README clarifies that this project does **not** implement or certify **IEC 62439-3**; it only exercises and observes a PRP underlay.
 
 **Follow-up (done, internal):** PRP/HSR demonstration & stress grading informed the README positioning and [demo-prp-lan-failure.md](demo-prp-lan-failure.md). The grade write-up itself is kept local and is not published in this repo.
 
