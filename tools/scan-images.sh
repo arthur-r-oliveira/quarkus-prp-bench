@@ -124,12 +124,22 @@ with open(dst, "w", encoding="utf-8") as fh:
           -f "${REPO_ROOT}/Containerfile.lightwell" \
           --secret "id=lightwell-settings,src=${SETTINGS}" \
           "${REPO_ROOT}" 2>&1 | tee "${OUT}/build-lightwell.log"
-        # Did anything actually come from Lightwell, or did Maven quietly use Central?
-        if grep -q 'packages\.redhat\.com' "${OUT}/build-lightwell.log"; then
-          log "Confirmed: artifacts resolved from packages.redhat.com"
+        # How much actually came from Lightwell? Maven logs "Downloading from X" when it
+        # *tries* a repository and "Downloaded from X" only on success, then silently
+        # falls back to the next repository. Grepping for the hostname alone counts the
+        # failed attempts too and badly overstates coverage — a real build here logged
+        # 969 Lightwell attempts for 116 successes. Count successes, and count jars
+        # separately: poms are resolution metadata, jars are what lands in the uber-jar
+        # and therefore what a scanner sees.
+        lw_jars=$(grep -c 'Downloaded from lightwell[^:]*:.*\.jar' "${OUT}/build-lightwell.log" || true)
+        central_jars=$(grep -c 'Downloaded from central:.*\.jar' "${OUT}/build-lightwell.log" || true)
+        total_jars=$(( lw_jars + central_jars ))
+        if (( lw_jars > 0 )); then
+          log "Lightwell supplied ${lw_jars}/${total_jars} jars (${central_jars} from Central)"
+          warn "Report that ratio, not 'built with Lightwell'. The rest came from Central."
         else
-          warn "No packages.redhat.com in the build log — the build may have resolved"
-          warn "entirely from Maven Central. Do not present this as a Lightwell result."
+          warn "Zero jars resolved from Lightwell — this build is Maven Central only."
+          warn "Do not present it as a Lightwell result."
         fi
         ;;
     esac
