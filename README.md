@@ -580,16 +580,24 @@ unchanged, which is why `pom.xml` is not touched.
 `tools/scan-images.sh` builds each variant and runs grype, trivy and a syft CycloneDX SBOM
 over all of them, writing `target/scans/summary.md`. Nothing is installed on the host —
 grype, syft and cosign are themselves pulled from the hardened catalog. Measured on one
-laptop on 2026-10-16, grype DB built 2026-10-16T06:29:51Z:
+laptop on 2026-10-20, grype DB built 2026-10-20T06:29:49Z:
 
 | Variant | Size | grype total | grype OS (rpm) | grype app (jar) |
 |---|---|---|---|---|
-| `legacy` | 384 MB | 759 | 688 | 71 |
-| `hardened` | 312 MB | 73 | 2 | 71 |
+| `legacy` | 384 MB | 779 | 707 | 72 |
+| `hardened` | 312 MB | 72 | 0 | 72 |
+| `hardened-lightwell` | 312 MB | 72 | 0 | 72 |
 
-The split is the point. The hardened base takes OS findings from 688 to 2; the 71
+The split is the point. The hardened base takes OS findings from 707 to 0; the 72
 application findings are **unchanged**, because they come from the uber-jar and no base
-image can touch them. That residue is what Lightwell Network addresses.
+image can touch them.
+
+`hardened-lightwell` scoring identically to `hardened` is the expected result, not a
+failure: Lightwell `validated` supplies *securely rebuilt* artifacts at the *same
+versions* (41 of 371 jars in this build; the rest fall back to Central), so a scanner
+matching on coordinates reports the same CVEs. Its value is provenance, not CVE reduction —
+moving the application count is what the `remediated` repository and its `.rhlw-*` version
+pins are for.
 
 These are scanner results at a point in time, not properties of the images — re-run the
 script rather than quoting the table. Full walkthrough, including the debuggability

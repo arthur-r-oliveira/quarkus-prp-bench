@@ -169,9 +169,20 @@ On the hardened-image / Lightwell material specifically:
   `--read-only --cap-drop=ALL`. Measured, not assumed. Do not sell read-only root as a
   hardened-image win here.
 - **Lightwell `validated` is not patched** — it is securely rebuilt and reproducible.
-  `remediated` carries the CVE fixes and requires `.rhlw-0000X` version pins.
-- Lead with the OS/app split (688 → 2 rpm findings, 71 → 71 jar findings), not image size.
-  384 MB → 312 MB is a real but unremarkable 19% and is a weak headline.
+  `remediated` carries the CVE fixes and requires `.rhlw-0000X` version pins. Measured:
+  `:hardened-lightwell` scores **identically** to `:hardened` (same findings, same SBOM,
+  same size), because validated ships the same versions at the same coordinates. That is
+  the expected result. Present it as provenance, never as CVE reduction.
+- **Lightwell covers only part of this tree.** Measured 2026-10-20: 41 of 371 jars came
+  from `validated`; the other 330 fell back to Central. Report the ratio, not "built with
+  Lightwell".
+- **Count `Downloaded from`, never the hostname.** Maven logs `Downloading from` on every
+  *attempt* and `Downloaded from` only on success, then falls back silently. The same
+  build logged 969 Lightwell attempts for 116 successes, so grepping for
+  `packages.redhat.com` overstates coverage by ~8x. `tools/scan-images.sh` counts jar
+  successes specifically — poms are resolution metadata, jars are what a scanner sees.
+- Lead with the OS/app split, not image size. 384 MB → 312 MB is an unremarkable 19%
+  (148 → 126 MB compressed, which is what Quay displays) and is a weak headline.
 
 `docs/prp-hsr-compliance-grade.md` is in `.gitignore` as an internal self-assessment — read it
 for context, but do not commit, publish, or quote it into tracked files.
