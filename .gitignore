@@ -13,3 +13,7 @@ bin/
 
 # Internal self-assessment; keep local, do not publish
 docs/prp-hsr-compliance-grade.md
+
+# Rendered Lightwell Network settings contain a live service-account token.
+# tools/maven-settings-lightwell.xml.template is the committed source.
+maven-settings-lightwell.xml

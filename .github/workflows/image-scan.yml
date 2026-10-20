@@ -1,0 +1,155 @@
+# Builds the PRP Bench image variants, scans them, publishes a comparison table to the
+# run summary, and pushes the images to Quay so they can be scanned by Quay's own
+# scanner, ACS, Insights or anything else pointed at a public registry.
+#
+# This is the CI half of the supply-chain demo; the local half is tools/scan-images.sh,
+# which this workflow calls so there is one definition of a scan.
+#
+# Deliberately non-blocking: the legacy variant is expected to accumulate findings over
+# time — that is the entire point of keeping it — so scan results never gate the push.
+# A pipeline that goes red because the deliberately-stale image is stale is a broken
+# demo, not a working control.
+#
+# Required repository secrets for the push: QUAY_USERNAME and QUAY_TOKEN. Use a Quay
+# robot account scoped to write on this repository, not a personal password.
+# Optional: LIGHTWELL_USER / LIGHTWELL_TOKEN enable the third variant.
+name: Image scan comparison
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    # Weekly, so the comparison stays current as vulnerability databases move.
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Build and scan image variants
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    env:
+      # The secrets context is not available in step-level `if`, so surface presence
+      # through an env var the conditions can read.
+      LW_USER: ${{ secrets.LIGHTWELL_USER }}
+      LW_TOKEN: ${{ secrets.LIGHTWELL_TOKEN }}
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+      REGISTRY: quay.io
+      NAMESPACE: rhn_support_arolivei
+      REPOSITORY: prp-bench
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build legacy variant (UBI8 / JDK 17)
+        run: podman build -t prp-bench:legacy -f Containerfile .
+
+      - name: Build hardened variant (hi/openjdk:21)
+        run: podman build -t prp-bench:hardened -f Containerfile.hardened .
+
+      # Only runs where the secrets exist, so forks and outside PRs do not fail.
+      - name: Build hardened-lightwell variant
+        if: ${{ env.LW_USER != '' && env.LW_TOKEN != '' }}
+        run: |
+          mkdir -p target
+          umask 077
+          # Rendered in python, not sed: LW_USER is "<org-id>|<name>" and a literal pipe
+          # breaks sed's s|…|…| delimiter. Credentials come from the environment, so they
+          # stay out of argv and out of the command echo.
+          LW_ACTIVE_PROFILE="lightwell-${LW_REPO:-validated}" \
+          python3 -I -c '
+          import os, sys
+          with open(sys.argv[1], encoding="utf-8") as fh:
+              text = fh.read()
+          for key in ("LW_USER", "LW_TOKEN", "LW_ACTIVE_PROFILE"):
+              text = text.replace("__%s__" % key, os.environ[key])
+          with open(sys.argv[2], "w", encoding="utf-8") as fh:
+              fh.write(text)
+          ' tools/maven-settings-lightwell.xml.template target/maven-settings-lightwell.xml
+          podman build -t prp-bench:hardened-lightwell \
+            -f Containerfile.lightwell \
+            --secret id=lightwell-settings,src=target/maven-settings-lightwell.xml .
+          rm -f target/maven-settings-lightwell.xml
+
+      # scan-images.sh only adds the lightwell variant when LW_USER/LW_TOKEN are set,
+      # and skips any variant whose image is not present locally.
+      # Scanning is informational; pushing is the deliverable. A flaky vulnerability-DB
+      # download must not cost us the images, and job-level continue-on-error would not
+      # help — it stops the job at the failing step, it does not skip past it.
+      - name: Scan all built variants
+        continue-on-error: true
+        run: tools/scan-images.sh --no-build
+
+      - name: Publish comparison table to the run summary
+        if: always()
+        run: cat target/scans/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Upload SBOMs and scan reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-scans
+          path: |
+            target/scans/*.json
+            target/scans/summary.md
+          if-no-files-found: warn
+          retention-days: 30
+
+      # ----------------------------------------------------------------- push to Quay
+      #
+      # Only on main and manual runs. Pull requests — including from forks, which get no
+      # secrets at all — build and scan but never push.
+      - name: Log in to Quay
+        if: >-
+          github.event_name != 'pull_request'
+          && env.QUAY_USERNAME != ''
+          && env.QUAY_TOKEN != ''
+        run: podman login "$REGISTRY" -u "$QUAY_USERNAME" --password-stdin <<<"$QUAY_TOKEN"
+
+      - name: Push image variants
+        if: >-
+          github.event_name != 'pull_request'
+          && env.QUAY_USERNAME != ''
+          && env.QUAY_TOKEN != ''
+        run: |
+          set -euo pipefail
+          SHA="$(git rev-parse --short HEAD)"
+          TARGET="${REGISTRY}/${NAMESPACE}/${REPOSITORY}"
+
+          for variant in legacy hardened hardened-lightwell; do
+            # hardened-lightwell is absent when the Lightwell secrets are not configured.
+            podman image exists "prp-bench:${variant}" || continue
+
+            # Two tags per variant: a stable one the demo and the k8s overlays point at,
+            # and an immutable SHA tag so a given scan result can be traced back to the
+            # exact build that produced it. Quay rescans on every push, and a moving
+            # :hardened tag alone makes "which build was that number from?" unanswerable.
+            podman tag "prp-bench:${variant}" "${TARGET}:${variant}"
+            podman tag "prp-bench:${variant}" "${TARGET}:${variant}-${SHA}"
+            podman push "${TARGET}:${variant}"
+            podman push "${TARGET}:${variant}-${SHA}"
+            echo "pushed ${TARGET}:${variant} and :${variant}-${SHA}"
+          done
+
+      - name: Note pushed tags in the run summary
+        if: >-
+          github.event_name != 'pull_request'
+          && env.QUAY_USERNAME != ''
+          && env.QUAY_TOKEN != ''
+        run: |
+          {
+            echo ""
+            echo "## Pushed to Quay"
+            echo ""
+            echo "Repository: \`${REGISTRY}/${NAMESPACE}/${REPOSITORY}\`"
+            echo ""
+            echo "Quay runs its own scanner on push; the Security tab per tag is the"
+            echo "customer-tooling view of the same comparison above."
+          } >> "$GITHUB_STEP_SUMMARY"

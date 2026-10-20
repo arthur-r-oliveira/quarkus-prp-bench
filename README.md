@@ -53,6 +53,7 @@ validated in your lab — and never present this tool as HSR-conformant.
 | Doc | Purpose |
 |-----|---------|
 | [docs/demo-prp-lan-failure.md](docs/demo-prp-lan-failure.md) | Customer demo: fail one LAN, watch redundancy degrade while app loss stays ~0% |
+| [docs/demo-supply-chain.md](docs/demo-supply-chain.md) | Customer demo: same workload on a legacy UBI8 base vs a Red Hat Hardened Image, scanned side by side |
 | [docs/opcua-pubsub-synth-plan.md](docs/opcua-pubsub-synth-plan.md) | Planned synthetic OPC-UA PubSub–shaped workload (not implemented yet) |
 | [docs/student-guide-tanenbaum.md](docs/student-guide-tanenbaum.md) | How the design maps to Tanenbaum (*Computer Networks*, *Modern OS*, *Distributed Systems*) |
 
@@ -550,6 +551,63 @@ podman build -t quay.io/rhn_support_arolivei/prp-bench:latest -f Containerfile .
 podman push quay.io/rhn_support_arolivei/prp-bench:latest
 ```
 
+### Image variants
+
+The same application is built three ways, so the images can be scanned against each other.
+Only the base image and the dependency source differ; the benchmark behaviour is identical.
+
+| Tag | Containerfile | Runtime base | Dependencies from |
+|---|---|---|---|
+| `:legacy` | `Containerfile` | `ubi8/openjdk-17-runtime:1.20` | Maven Central |
+| `:hardened` | `Containerfile.hardened` | `hi/openjdk:21` (Red Hat Hardened Images) | Maven Central |
+| `:hardened-lightwell` | `Containerfile.lightwell` | `hi/openjdk:21` | Lightwell Network `validated` |
+
+```bash
+podman build -t prp-bench:legacy   -f Containerfile .
+podman build -t prp-bench:hardened -f Containerfile.hardened .
+
+# Requires a Lightwell Network service account; the repositories 401 anonymously.
+LW_USER='<org>|<service-account>' LW_TOKEN='<token>' tools/scan-images.sh
+```
+
+`Containerfile` is deliberately frozen on UBI8 / JDK 17. It is the control in the
+comparison — modernising it destroys the measurement. The hardened catalog publishes no
+JDK 17 tag, so the new variants run on 21; bytecode built at release 17 runs there
+unchanged, which is why `pom.xml` is not touched.
+
+### Scanning the variants
+
+`tools/scan-images.sh` builds each variant and runs grype, trivy and a syft CycloneDX SBOM
+over all of them, writing `target/scans/summary.md`. Nothing is installed on the host —
+grype, syft and cosign are themselves pulled from the hardened catalog. Measured on one
+laptop on 2026-10-16, grype DB built 2026-10-16T06:29:51Z:
+
+| Variant | Size | grype total | grype OS (rpm) | grype app (jar) |
+|---|---|---|---|---|
+| `legacy` | 384 MB | 759 | 688 | 71 |
+| `hardened` | 312 MB | 73 | 2 | 71 |
+
+The split is the point. The hardened base takes OS findings from 688 to 2; the 71
+application findings are **unchanged**, because they come from the uber-jar and no base
+image can touch them. That residue is what Lightwell Network addresses.
+
+These are scanner results at a point in time, not properties of the images — re-run the
+script rather than quoting the table. Full walkthrough, including the debuggability
+trade-off and what *not* to claim, in
+[docs/demo-supply-chain.md](docs/demo-supply-chain.md).
+
+### CI
+
+[.github/workflows/image-scan.yml](.github/workflows/image-scan.yml) builds, scans and
+pushes the variants to `quay.io/rhn_support_arolivei/prp-bench` on merges to `main`,
+weekly, and on manual dispatch; pull requests build and scan but never push. The
+comparison table lands in the run summary and the SBOMs are uploaded as artifacts.
+
+Needs `QUAY_USERNAME` / `QUAY_TOKEN` repository secrets (a Quay robot account with write
+on the repository). Quay creates repositories **private** on first push — set the
+visibility to public afterwards, or no external scanner can reach them. Setup steps are in
+[docs/demo-supply-chain.md](docs/demo-supply-chain.md).
+
 ## Deploying on OpenShift (SNO)
 
 The application uses `hostNetwork: true` to reach the PRP interface directly, so
@@ -561,6 +619,7 @@ the default service account needs the `hostnetwork` SCC.
 |---|---|---|---|---|
 | base (default) | `k8s/base` | 250m / 2 | 256Mi / 512Mi | Constrained or virtualised nodes |
 | baremetal | `k8s/overlays/baremetal` | 4 / 8 | 2Gi / 4Gi | Real hardware |
+| hardened | `k8s/overlays/hardened` | 250m / 2 | 256Mi / 512Mi | Same as base, but runs the `:hardened` image with a restrictive securityContext |
 
 The base profile is deliberately small so the benchmark runs on a modest VM lab.
 The baremetal overlay only raises CPU and memory headroom — it does not change

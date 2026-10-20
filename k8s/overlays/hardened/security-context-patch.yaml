@@ -1,0 +1,22 @@
+# A restrictive container securityContext, verified against this workload: the app
+# only reads /proc/net/snmp and /sys/class/net and never writes to disk, so a
+# read-only root filesystem holds and no capabilities are needed.
+#
+# Honest framing for the demo: this is NOT a hardened-image differentiator. The
+# legacy UBI8 image (UID 185) starts cleanly under exactly the same constraints —
+# measured, not assumed. It is applied here because it is correct, not because it
+# proves anything about the base image. The hardened-image result is the scanner
+# split in docs/demo-supply-chain.md.
+#
+# runAsUser is intentionally not pinned: hi/openjdk:21 already defaults to 65532,
+# and hardcoding it here would break the moment this overlay is pointed at a
+# different variant.
+- op: add
+  path: /spec/template/spec/containers/0/securityContext
+  value:
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
