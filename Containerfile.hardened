@@ -1,0 +1,21 @@
+# Variant B of the supply-chain demo: same application, Red Hat Hardened Image runtime.
+# See docs/demo-supply-chain.md. Containerfile (the legacy UBI8/JDK17 variant) is kept
+# frozen as the "before" artifact and must not be modernised.
+#
+# The builder stage stays on UBI because there is no hardened Maven image and hardened
+# images ship no shell or package manager, so RUN is impossible in a hardened stage.
+FROM registry.access.redhat.com/ubi9/openjdk-21:latest AS builder
+USER 0
+WORKDIR /build
+COPY pom.xml .
+COPY src src
+RUN mvn package -DskipTests -Dquarkus.package.jar.type=uber-jar
+
+# hi/openjdk has no JDK 17 tag; 21 is the lowest available. Bytecode built at
+# release 17 runs on a 21 JVM, so pom.xml needs no change.
+FROM registry.access.redhat.com/hi/openjdk:21
+# Base already defaults to USER 65532 with no ENTRYPOINT and CMD ["jshell"].
+COPY --from=builder --chown=65532:0 --chmod=644 /build/target/*-runner.jar /app/app.jar
+EXPOSE 8080 9200/udp 9201/udp
+# Exec form is mandatory: there is no shell in this image.
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

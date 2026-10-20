@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Red Hat Lightwell Network Maven settings template.
+
+  tools/scan-images.sh substitutes the LW_USER, LW_TOKEN and LW_ACTIVE_PROFILE
+  placeholders below into target/maven-settings-lightwell.xml, which is gitignored
+  because it holds a live token. Never commit a rendered copy.
+
+  Do not write those placeholder names in their double-underscore form anywhere in this
+  comment. Substitution is a plain text replace over the whole file, so a mention here
+  gets replaced too. That copies the token into a comment, and a JWT containing two
+  consecutive hyphen characters then produces XML no parser will accept (such a sequence
+  is illegal inside a comment). For the same reason, do not write one here.
+
+  All three repositories are declared here, but only one is active per build — chosen
+  with LW_REPO=validated|remediated|predisclosure (default: validated):
+
+    validated      Securely rebuilt, reproducible, SLSA L3 provenance. NOT patched.
+                   A URL change with no code change, which is why it is the default.
+    remediated     Carries the CVE fixes. Requires pinning dependency versions to the
+                   .rhlw-0000X suffix in pom.xml — pointing at this repo without
+                   pinning resolves ordinary versions and changes nothing.
+    predisclosure  Fixes for vulnerabilities not yet public or not yet accepted
+                   upstream. Not available on all membership tiers.
+
+  See https://docs.redhat.com/en/documentation/lightwell_network/current
+
+  Every repository needs a <server> whose id matches the <repository> id, or the request
+  goes out unauthenticated and packages.redhat.com answers 401.
+
+  Central is left as a fallback so the build does not break on artifacts Lightwell does not
+  carry. Confirm what actually resolved from Lightwell by grepping the build log for
+  packages.redhat.com rather than assuming.
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+
+  <servers>
+    <server>
+      <id>lightwell-validated</id>
+      <username>__LW_USER__</username>
+      <password>__LW_TOKEN__</password>
+    </server>
+    <server>
+      <id>lightwell-remediated</id>
+      <username>__LW_USER__</username>
+      <password>__LW_TOKEN__</password>
+    </server>
+    <server>
+      <id>lightwell-predisclosure</id>
+      <username>__LW_USER__</username>
+      <password>__LW_TOKEN__</password>
+    </server>
+  </servers>
+
+  <profiles>
+    <profile>
+      <id>lightwell-validated</id>
+      <repositories>
+        <repository>
+          <id>lightwell-validated</id>
+          <name>Red Hat Lightwell Network - Validated</name>
+          <url>https://packages.redhat.com/lightwell/java/validated/</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>false</enabled></snapshots>
+        </repository>
+      </repositories>
+      <pluginRepositories>
+        <pluginRepository>
+          <id>lightwell-validated</id>
+          <name>Red Hat Lightwell Network - Validated</name>
+          <url>https://packages.redhat.com/lightwell/java/validated/</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>false</enabled></snapshots>
+        </pluginRepository>
+      </pluginRepositories>
+    </profile>
+
+    <profile>
+      <id>lightwell-remediated</id>
+      <repositories>
+        <repository>
+          <id>lightwell-remediated</id>
+          <name>Red Hat Lightwell Network - Remediated</name>
+          <url>https://packages.redhat.com/lightwell/java/remediated/</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>false</enabled></snapshots>
+        </repository>
+      </repositories>
+      <pluginRepositories>
+        <pluginRepository>
+          <id>lightwell-remediated</id>
+          <name>Red Hat Lightwell Network - Remediated</name>
+          <url>https://packages.redhat.com/lightwell/java/remediated/</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>false</enabled></snapshots>
+        </pluginRepository>
+      </pluginRepositories>
+    </profile>
+
+    <profile>
+      <id>lightwell-predisclosure</id>
+      <repositories>
+        <repository>
+          <id>lightwell-predisclosure</id>
+          <name>Red Hat Lightwell Network - Predisclosure</name>
+          <url>https://packages.redhat.com/lightwell/java/predisclosure/</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>false</enabled></snapshots>
+        </repository>
+      </repositories>
+      <pluginRepositories>
+        <pluginRepository>
+          <id>lightwell-predisclosure</id>
+          <name>Red Hat Lightwell Network - Predisclosure</name>
+          <url>https://packages.redhat.com/lightwell/java/predisclosure/</url>
+          <releases><enabled>true</enabled></releases>
+          <snapshots><enabled>false</enabled></snapshots>
+        </pluginRepository>
+      </pluginRepositories>
+    </profile>
+  </profiles>
+
+  <activeProfiles>
+    <activeProfile>__LW_ACTIVE_PROFILE__</activeProfile>
+  </activeProfiles>
+
+</settings>

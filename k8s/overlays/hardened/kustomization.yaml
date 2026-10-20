@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Runs the Red Hat Hardened Images variant of the workload instead of the legacy
+# UBI8/JDK17 one. Behaviour is identical; only the base image differs. See
+# docs/demo-supply-chain.md.
+#
+# Deliberately layered on base rather than on overlays/baremetal so the image swap
+# can be demonstrated without also changing resource sizing — one variable at a time,
+# same discipline as the rest of this repo.
+resources:
+  - ../../base
+
+images:
+  - name: quay.io/rhn_support_arolivei/prp-bench
+    newTag: hardened
+
+patches:
+  - path: security-context-patch.yaml
+    target:
+      kind: Deployment
+      labelSelector: app=prp-bench

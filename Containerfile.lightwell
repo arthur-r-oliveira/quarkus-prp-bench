@@ -1,0 +1,26 @@
+# Variant C of the supply-chain demo: hardened runtime AND dependencies resolved from
+# Red Hat Lightwell Network instead of Maven Central. See docs/demo-supply-chain.md.
+#
+# Identical to Containerfile.hardened except for how Maven resolves artifacts, so any
+# scan difference between :hardened and :hardened-lightwell is attributable to the
+# dependency source alone.
+#
+# Build with a secret mount so the service-account token never lands in a layer:
+#   podman build -f Containerfile.lightwell \
+#     --secret id=lightwell-settings,src=target/maven-settings-lightwell.xml \
+#     -t prp-bench:hardened-lightwell .
+# tools/scan-images.sh renders that settings file from the template.
+FROM registry.access.redhat.com/ubi9/openjdk-21:latest AS builder
+USER 0
+WORKDIR /build
+COPY pom.xml .
+COPY src src
+# The secret is mounted only for the duration of this RUN and is not committed to the layer.
+RUN --mount=type=secret,id=lightwell-settings,uid=0,mode=0400 \
+    mvn package -DskipTests -Dquarkus.package.jar.type=uber-jar \
+        --settings /run/secrets/lightwell-settings
+
+FROM registry.access.redhat.com/hi/openjdk:21
+COPY --from=builder --chown=65532:0 --chmod=644 /build/target/*-runner.jar /app/app.jar
+EXPOSE 8080 9200/udp 9201/udp
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
