@@ -62,7 +62,9 @@ The same application builds three ways for the supply-chain demo
   matches credentials by id, and a mismatch silently requests anonymously and 401s.
 - `tools/scan-images.sh` exports **docker-archive**, not oci-archive: trivy's `--input`
   rejects an OCI archive tar. It also mounts the scanner cache with `:U` because `hi/grype`
-  and `hi/syft` run as UID 65532 and cannot otherwise write to a host directory.
+  and `hi/syft` run as UID 65532 and cannot otherwise write to a host directory. That cache
+  lives under `~/.cache/prp-bench/scanner-cache` (not `target/scans/`) so a self-hosted
+  `actions/checkout` clean is not blocked by UID-65532-owned files.
 
 Run locally as either role:
 
