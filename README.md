@@ -606,14 +606,16 @@ trade-off and what *not* to claim, in
 
 ### CI
 
-[.github/workflows/image-scan.yml](.github/workflows/image-scan.yml) builds, scans and
-pushes the variants to `quay.io/rhn_support_arolivei/prp-bench` on merges to `main`,
-weekly, and on manual dispatch; pull requests build and scan but never push. The
-comparison table lands in the run summary and the SBOMs are uploaded as artifacts.
+[.github/workflows/build-push-scan.yml](.github/workflows/build-push-scan.yml) runs
+**Build → Push → Scan → Report** on a self-hosted runner labeled `prp-bench` (this
+workstation). It fires on merges to `main`, weekly, and `workflow_dispatch`; pull
+requests build/scan/report but never push. The comparison table lands in the run
+summary and the SBOMs are uploaded as artifacts. `:latest` is pushed as an alias of
+`:legacy` so `k8s/base` keeps working.
 
-Needs `QUAY_USERNAME` / `QUAY_TOKEN` repository secrets (a Quay robot account with write
-on the repository). Quay creates repositories **private** on first push — set the
-visibility to public afterwards, or no external scanner can reach them. Setup steps are in
+Credentials never go in git. Prefer GitHub Actions secrets (`QUAY_*`, `LIGHTWELL_*`);
+on the self-hosted runner the workflow can also use an existing `podman login quay.io`
+and `~/.config/prp-bench/ci.env` for Lightwell. Setup steps are in
 [docs/demo-supply-chain.md](docs/demo-supply-chain.md).
 
 ## Deploying on OpenShift (SNO)
