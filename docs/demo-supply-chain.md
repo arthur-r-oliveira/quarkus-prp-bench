@@ -86,21 +86,27 @@ comparison in `target/scans/summary.md`.
 
 ### 2. Read the table
 
-Measured on this laptop on **2026-10-16**, grype vulnerability DB built **2026-10-16T06:29:51Z**:
+Measured on this laptop on **2026-10-20**, grype vulnerability DB built **2026-10-20T06:29:49Z**:
 
 | Variant | Size | Layers | SBOM pkgs | grype total | grype OS | grype app | crit | high |
 |---|---|---|---|---|---|---|---|---|
-| `legacy` | 384 MB | 3 | 6595 | 759 | 688 | 71 | 1 | 114 |
-| `hardened` | 312 MB | 33 | 1972 | 73 | 2 | 71 | 1 | 35 |
+| `legacy` | 384 MB | 3 | 6595 | 779 | 707 | 72 | 1 | 114 |
+| `hardened` | 312 MB | 33 | 1972 | 72 | 0 | 72 | 1 | 33 |
+| `hardened-lightwell` | 312 MB | 33 | 1972 | 72 | 0 | 72 | 1 | 33 |
 
-Trivy agreed closely on the same images (759 and 71 total), which is worth pointing out: two
-independent scanners, same conclusion.
+Trivy agreed on the same images (778 and 72 total): two independent scanners, same conclusion.
 
 **The line to land is the `grype OS` / `grype app` split:**
 
-- OS findings: **688 → 2**. That is what the hardened base image did.
-- Application findings: **71 → 71**. Not a reduction — the *same* findings, from the same
+- OS findings: **707 → 0**. That is what the hardened base image did.
+- Application findings: **72 → 72**. Not a reduction — the *same* findings, from the same
   uber-jar. The base image cannot touch them and does not pretend to.
+
+A worked example of why these numbers carry a date: the same images four days earlier
+(DB built 2026-10-16) scored 759/688/71 and 73/2/71. Nothing about the images changed —
+only the database did. The hardened image's OS findings went 2 → 0 and the legacy image's
+went 688 → 707 on their own. Re-run the script before every conversation; do not quote this
+table.
 
 Resist leading with image size. 384 MB → 312 MB is a real but unremarkable 19%, because a
 full JDK plus a Quarkus uber-jar dominates both. The CVE split is the result; the size is a
@@ -125,9 +131,36 @@ podman history prp-bench:hardened-lightwell | grep -i lightwell   # expect nothi
 git status --porcelain | grep settings                            # expect nothing
 ```
 
-The script greps the build log for `packages.redhat.com` and warns if nothing resolved from
-Lightwell — Maven falls back to Central silently, and a demo that claims a Lightwell result
-while having quietly used Central is worse than no demo.
+#### What actually resolved — measured
+
+The build succeeds and Lightwell really does serve this dependency tree, but only partly:
+
+| Source | jars | poms |
+|---|---|---|
+| Lightwell `validated` | **41** | 75 |
+| Maven Central (fallback) | 330 | 522 |
+
+So about **11% of the jars** in the uber-jar came from Lightwell — `smallrye-common-*`,
+`commons-codec` and similar. The rest fell back to Central because Lightwell does not carry
+them at these coordinates. Maven attempted Lightwell 969 times and succeeded 116 times; it
+logs `Downloading from` on every attempt and `Downloaded from` only on success, then falls
+back silently.
+
+That distinction matters enough that the script counts it: grepping the log for
+`packages.redhat.com` alone matches the 969 *attempts* and would have reported near-total
+coverage for what is actually 11%. The script now reports the jar ratio and only claims
+success when jars, not poms, came from Lightwell.
+
+**And the scan result is identical to plain `:hardened`** — 72 findings, same SBOM, same
+size. That is the correct outcome, not a failure: `validated` ships *securely rebuilt*
+artifacts at the *same versions*, so a scanner matching on coordinates reports the same
+CVEs. The value of `validated` is provenance and reproducibility, not CVE reduction. If you
+want the finding count to move, that is what `remediated` and its `.rhlw-*` version pins are
+for.
+
+The honest framing: "the hardened base eliminated the OS findings; Lightwell `validated`
+gave us verified provenance for part of the dependency tree at identical versions; closing
+the remaining 72 application findings is a `remediated` exercise we have not done yet."
 
 **Credential format.** `LW_USER` is the service account username in Red Hat's
 `XXXXXXX|service-account-name` form — the org ID, a pipe, then the account name as shown
