@@ -30,7 +30,10 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="${REPO_ROOT}/target/scans"
-CACHE="${OUT}/cache"
+# Keep the scanner DB cache *outside* the git work tree. hi/grype and hi/syft run as
+# UID 65532 with a :U mount that chowns the cache dir; if that lands under target/,
+# the next actions/checkout clean fails with EACCES on self-hosted runners.
+CACHE="${SCAN_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/prp-bench/scanner-cache}"
 IMAGE_NAME="${IMAGE_NAME:-prp-bench}"
 LW_REPO="${LW_REPO:-validated}"
 
