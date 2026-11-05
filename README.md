@@ -1,5 +1,7 @@
 # PRP Bench
 
+[![Build Push Scan Report](https://github.com/arthur-r-oliveira/quarkus-prp-bench/actions/workflows/build-push-scan.yml/badge.svg)](https://github.com/arthur-r-oliveira/quarkus-prp-bench/actions/workflows/build-push-scan.yml)
+
 PRP Bench shows Industrial Edge customers that a Quarkus workload on OpenShift can
 **drive and observe a PRP underlay the way OT cares about it** — zero loss, tail
 latency (p99.9), and LAN redundancy — not just average throughput.
