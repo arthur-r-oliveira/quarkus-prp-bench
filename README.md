@@ -1,6 +1,7 @@
 # PRP Bench
 
 [![Build Push Scan Report](https://github.com/arthur-r-oliveira/quarkus-prp-bench/actions/workflows/build-push-scan.yml/badge.svg)](https://github.com/arthur-r-oliveira/quarkus-prp-bench/actions/workflows/build-push-scan.yml)
+[![Quay Repository](https://img.shields.io/badge/quay.io-prp--bench-blue)](https://quay.io/repository/rhn_support_arolivei/prp-bench?tab=tags)
 
 PRP Bench shows Industrial Edge customers that a Quarkus workload on OpenShift can
 **drive and observe a PRP underlay the way OT cares about it** — zero loss, tail
@@ -617,8 +618,13 @@ summary and the SBOMs are uploaded as artifacts. `:latest` is pushed as an alias
 
 Credentials never go in git. Prefer GitHub Actions secrets (`QUAY_*`, `LIGHTWELL_*`);
 on the self-hosted runner the workflow can also use an existing `podman login quay.io`
-and `~/.config/prp-bench/ci.env` for Lightwell. Setup steps are in
-[docs/demo-supply-chain.md](docs/demo-supply-chain.md).
+and `~/.config/prp-bench/ci.env` for Lightwell.
+
+After push, the same workflow fetches [Quay Security Scanner](https://quay.io/repository/rhn_support_arolivei/prp-bench?tab=tags)
+(Clair) results for `:legacy`, `:hardened`, `:hardened-lightwell`, and `:latest` via
+`tools/quay-scan-report.sh` and appends them to the run summary next to the local
+grype/trivy table — that is the customer-tooling view of the same comparison.
+Setup steps are in [docs/demo-supply-chain.md](docs/demo-supply-chain.md).
 
 ## Deploying on OpenShift (SNO)
 

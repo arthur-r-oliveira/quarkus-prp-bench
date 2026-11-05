@@ -163,9 +163,19 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       # ----------------------------------------------------------------- Scan
-      - name: Scan all built variants
+      - name: Scan all built variants (grype / trivy / syft)
         continue-on-error: true
         run: tools/scan-images.sh --no-build
+
+      # Quay Clair is the customer-facing scanner (Security tab on the tags page).
+      # Public API — no token. Poll after push so a just-uploaded digest can finish.
+      - name: Fetch Quay Security Scanner results
+        continue-on-error: true
+        env:
+          QUAY_NAMESPACE: ${{ env.NAMESPACE }}
+          QUAY_REPOSITORY: ${{ env.REPOSITORY }}
+          QUAY_POLL_SECONDS: "300"
+        run: tools/quay-scan-report.sh
 
       # ----------------------------------------------------------------- Report
       - name: Publish report to the run summary
@@ -178,11 +188,20 @@ jobs:
             echo "- Event: \`${{ github.event_name }}\`"
             echo "- Runner: self-hosted (\`prp-bench\`)"
             echo "- Commit: \`${{ github.sha }}\`"
+            echo "- Quay: [rhn_support_arolivei/prp-bench tags](https://quay.io/repository/rhn_support_arolivei/prp-bench?tab=tags)"
             echo ""
             if [[ -f target/scans/summary.md ]]; then
               cat target/scans/summary.md
             else
-              echo "_No scan summary produced._"
+              echo "_No local scan summary produced._"
+            fi
+            echo ""
+            if [[ -f target/scans/quay-summary.md ]]; then
+              cat target/scans/quay-summary.md
+            else
+              echo "## Quay Security Scanner"
+              echo ""
+              echo "_No Quay summary produced._"
             fi
             echo ""
             echo "## Push"
@@ -210,5 +229,6 @@ jobs:
           path: |
             target/scans/*.json
             target/scans/summary.md
+            target/scans/quay-summary.md
           if-no-files-found: warn
           retention-days: 30

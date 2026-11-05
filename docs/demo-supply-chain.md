@@ -201,14 +201,21 @@ The same images, read by whatever is already in their pipeline:
 podman tag prp-bench:hardened quay.io/rhn_support_arolivei/prp-bench:hardened
 podman push quay.io/rhn_support_arolivei/prp-bench:hardened
 
+# Pull Quay Clair into the same summary as local grype/trivy (public API, no token)
+tools/quay-scan-report.sh
+# → target/scans/quay-summary.md  and  quay-<tag>.json
+
 # Advanced Cluster Security
 roxctl image scan --image quay.io/rhn_support_arolivei/prp-bench:hardened
 
 # Red Hat Insights picks up images running in a connected cluster
 ```
 
-Pushing all three tags and showing them side by side in the Quay UI is usually the most
-persuasive single screenshot, because it is the customer's own tooling drawing the conclusion.
+The CI workflow runs `tools/quay-scan-report.sh` after push and pastes the Quay table
+into the Actions run summary. The live tags page —
+[quay.io/repository/rhn_support_arolivei/prp-bench?tab=tags](https://quay.io/repository/rhn_support_arolivei/prp-bench?tab=tags)
+— is usually the most persuasive single screenshot, because it is the customer's own
+tooling drawing the conclusion.
 
 #### Let CI do the pushing
 
