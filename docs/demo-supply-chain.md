@@ -212,32 +212,34 @@ persuasive single screenshot, because it is the customer's own tooling drawing t
 
 #### Let CI do the pushing
 
-[.github/workflows/image-scan.yml](../.github/workflows/image-scan.yml) builds, scans and
-pushes all available variants to `quay.io/rhn_support_arolivei/prp-bench` on every merge to
-`main`, on a weekly schedule, and on manual dispatch. Pull requests build and scan but never
-push, and forks get no credentials at all.
+[.github/workflows/build-push-scan.yml](../.github/workflows/build-push-scan.yml) runs
+**Build → Push → Scan → Report** on a self-hosted runner labeled `prp-bench`. It pushes
+to `quay.io/rhn_support_arolivei/prp-bench` on every merge to `main`, on a weekly
+schedule, and on manual dispatch. Pull requests build/scan/report but never push.
 
 One-time setup:
 
-1. **Quay robot account.** In Quay, *Account Settings → Robot Accounts*, create one (e.g.
-   `rhn_support_arolivei+github`) and give it **write** on the `prp-bench` repository. Use a
-   robot, not your own password — it is scoped and revocable on its own.
-2. **GitHub secrets.** Repository *Settings → Secrets and variables → Actions*:
-   - `QUAY_USERNAME` — the robot name, including the `+` part
-   - `QUAY_TOKEN` — the robot token
-   - optionally `LIGHTWELL_USER` / `LIGHTWELL_TOKEN` for the third variant
-3. **Make the repository public.** Quay creates repositories **private** on first push, and
-   a private repository defeats the point — nobody can scan it without credentials. After
-   the first successful push, set *Repository Settings → Visibility → Make Public*. This is
-   not something the workflow can do; Quay has no "create as public" push flag.
+1. **Self-hosted runner on this workstation.**
+   ```bash
+   cd ~/actions-runner/prp-bench
+   gh auth login -h github.com -p https   # once; needs repo admin
+   ./register-prp-bench.sh
+   nohup ./run.sh >runner.log 2>&1 &
+   ```
+2. **Quay credentials (never commit).** Either:
+   - keep an interactive `podman login quay.io -u rhn_support_arolivei` on the host, or
+   - set Actions secrets `QUAY_USERNAME` / `QUAY_TOKEN` (prefer a Quay **robot** account
+     scoped to write on `prp-bench`).
+3. **Lightwell (optional, third variant).** Either Actions secrets `LIGHTWELL_USER` /
+   `LIGHTWELL_TOKEN`, or a mode-`600` file at `~/.config/prp-bench/ci.env` exporting
+   `LW_USER` / `LW_TOKEN`. Do not put that file in the git repo.
+4. **Make the Quay repository public.** Quay creates repositories **private** on first
+   push — set *Repository Settings → Visibility → Make Public* afterwards, or no
+   external scanner can reach them.
 
-Each variant gets two tags: a stable one (`:hardened`) that the docs and overlays point at,
-and an immutable `:hardened-<short-sha>`. The stable tag is what you demo; the SHA tag is
-what makes a scan result traceable to the build that produced it, which matters the first
-time someone asks "which build was that number from?".
-
-Scan results never gate the push. The legacy image is *supposed* to accumulate findings —
-gating on it would permanently red the pipeline and break the control.
+Each variant gets a stable tag (`:hardened`) and an immutable `:hardened-<short-sha>`.
+`:latest` is an alias of `:legacy` for `k8s/base`. Scan results never gate the push —
+the legacy image is *supposed* to accumulate findings.
 
 ### 5. Verify the base image is what it claims to be
 
@@ -309,6 +311,6 @@ room with someone who will `podman run --entrypoint /bin/sh` is an avoidable own
 Numbers in this file are from one laptop on one date with one database version. Re-run
 `tools/scan-images.sh` before any customer conversation and use what it prints, not what is
 written above. The CI workflow
-([.github/workflows/image-scan.yml](../.github/workflows/image-scan.yml)) does the same thing
+([.github/workflows/build-push-scan.yml](../.github/workflows/build-push-scan.yml)) does the same thing
 weekly and publishes the table to the run summary, which is the easiest way to get a current
 screenshot without a local build.

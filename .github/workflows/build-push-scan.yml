@@ -1,0 +1,214 @@
+# Build → Push → Scan → Report for the PRP Bench image variants.
+#
+# Runs on a self-hosted runner (this workstation) so podman, local caches, and an
+# existing quay.io login can be reused. Secrets are optional on self-hosted:
+# QUAY_USERNAME / QUAY_TOKEN override the host login; LIGHTWELL_* enable the
+# third variant. Never put credential values in this file or in git.
+#
+# Deliberately non-blocking on scan: the legacy variant is expected to accumulate
+# findings — that is the control in the supply-chain demo. Build and push failures
+# fail the job.
+#
+# PRs build + scan + report only. Push runs on main, schedule, and workflow_dispatch.
+name: Build Push Scan Report
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pipeline:
+    name: Build, push, scan, report
+    runs-on: [self-hosted, prp-bench]
+    # Do not continue-on-error at job level — a failed build must go red.
+
+    env:
+      LW_USER: ${{ secrets.LIGHTWELL_USER }}
+      LW_TOKEN: ${{ secrets.LIGHTWELL_TOKEN }}
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+      REGISTRY: quay.io
+      NAMESPACE: rhn_support_arolivei
+      REPOSITORY: prp-bench
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # On this self-hosted runner, credentials may live outside git:
+      #   ~/.config/prp-bench/ci.env  (preferred) or the workspace target/local-credentials.env
+      # GitHub Actions secrets win when set. Values are never written into the repo.
+      - name: Load local credentials if secrets are empty
+        run: |
+          set -euo pipefail
+          load_file() {
+            local f="$1"
+            [[ -f "$f" ]] || return 1
+            # shellcheck disable=SC1090
+            set -a
+            source "$f"
+            set +a
+            echo "Loaded credential file $f"
+            return 0
+          }
+          if [[ -z "${LW_USER}" || -z "${LW_TOKEN}" ]]; then
+            load_file "${HOME}/.config/prp-bench/ci.env" \
+              || load_file "${GITHUB_WORKSPACE}/target/local-credentials.env" \
+              || true
+            if [[ -n "${LW_USER:-}" && -n "${LW_TOKEN:-}" ]]; then
+              echo "LW_USER=${LW_USER}" >> "$GITHUB_ENV"
+              echo "LW_TOKEN=${LW_TOKEN}" >> "$GITHUB_ENV"
+            fi
+          fi
+
+      # ----------------------------------------------------------------- Build
+      - name: Build legacy variant (UBI8 / JDK 17)
+        run: podman build -t prp-bench:legacy -f Containerfile .
+
+      - name: Build hardened variant (hi/openjdk:21)
+        run: podman build -t prp-bench:hardened -f Containerfile.hardened .
+
+      - name: Build hardened-lightwell variant
+        run: |
+          set -euo pipefail
+          if [[ -z "${LW_USER:-}" || -z "${LW_TOKEN:-}" ]]; then
+            echo "Skipping lightwell — no LIGHTWELL secrets and no local ci.env"
+            exit 0
+          fi
+          mkdir -p target
+          umask 077
+          LW_ACTIVE_PROFILE="lightwell-${LW_REPO:-validated}" \
+          python3 -I -c '
+          import os, sys
+          with open(sys.argv[1], encoding="utf-8") as fh:
+              text = fh.read()
+          for key in ("LW_USER", "LW_TOKEN", "LW_ACTIVE_PROFILE"):
+              text = text.replace("__%s__" % key, os.environ[key])
+          with open(sys.argv[2], "w", encoding="utf-8") as fh:
+              fh.write(text)
+          ' tools/maven-settings-lightwell.xml.template target/maven-settings-lightwell.xml
+          podman build -t prp-bench:hardened-lightwell \
+            -f Containerfile.lightwell \
+            --secret id=lightwell-settings,src=target/maven-settings-lightwell.xml .
+          rm -f target/maven-settings-lightwell.xml
+
+      # ----------------------------------------------------------------- Push
+      # Prefer GitHub Actions secrets. On this self-hosted runner, fall back to an
+      # existing `podman login quay.io` on the host so the laptop login can push
+      # without storing the password in the repo.
+      - name: Resolve Quay credentials
+        id: quay
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          if [[ -n "${QUAY_USERNAME}" && -n "${QUAY_TOKEN}" ]]; then
+            echo "mode=secrets" >> "$GITHUB_OUTPUT"
+            echo "Using QUAY_* repository secrets"
+          elif podman login --get-login "$REGISTRY" >/dev/null 2>&1; then
+            echo "mode=host" >> "$GITHUB_OUTPUT"
+            echo "Using existing podman login for $REGISTRY ($(podman login --get-login "$REGISTRY"))"
+          else
+            echo "mode=skip" >> "$GITHUB_OUTPUT"
+            echo "No Quay credentials (secrets or host login) — push will be skipped"
+          fi
+
+      - name: Log in to Quay
+        if: >-
+          github.event_name != 'pull_request'
+          && steps.quay.outputs.mode == 'secrets'
+        run: podman login "$REGISTRY" -u "$QUAY_USERNAME" --password-stdin <<<"$QUAY_TOKEN"
+
+      - name: Push image variants
+        id: push
+        if: >-
+          github.event_name != 'pull_request'
+          && steps.quay.outputs.mode != 'skip'
+          && steps.quay.outputs.mode != ''
+        run: |
+          set -euo pipefail
+          SHA="$(git rev-parse --short HEAD)"
+          TARGET="${REGISTRY}/${NAMESPACE}/${REPOSITORY}"
+          PUSHED=()
+
+          for variant in legacy hardened hardened-lightwell; do
+            podman image exists "prp-bench:${variant}" || continue
+            podman tag "prp-bench:${variant}" "${TARGET}:${variant}"
+            podman tag "prp-bench:${variant}" "${TARGET}:${variant}-${SHA}"
+            podman push "${TARGET}:${variant}"
+            podman push "${TARGET}:${variant}-${SHA}"
+            PUSHED+=("${TARGET}:${variant}" "${TARGET}:${variant}-${SHA}")
+            echo "pushed ${TARGET}:${variant} and :${variant}-${SHA}"
+          done
+
+          # Keep k8s/base (:latest) working without a separate manual push.
+          if podman image exists prp-bench:legacy; then
+            podman tag prp-bench:legacy "${TARGET}:latest"
+            podman push "${TARGET}:latest"
+            PUSHED+=("${TARGET}:latest")
+            echo "pushed ${TARGET}:latest (alias of legacy)"
+          fi
+
+          {
+            echo "sha=${SHA}"
+            echo "tags<<EOF"
+            printf '%s\n' "${PUSHED[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # ----------------------------------------------------------------- Scan
+      - name: Scan all built variants
+        continue-on-error: true
+        run: tools/scan-images.sh --no-build
+
+      # ----------------------------------------------------------------- Report
+      - name: Publish report to the run summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "# Build / Push / Scan / Report"
+            echo ""
+            echo "- Event: \`${{ github.event_name }}\`"
+            echo "- Runner: self-hosted (\`prp-bench\`)"
+            echo "- Commit: \`${{ github.sha }}\`"
+            echo ""
+            if [[ -f target/scans/summary.md ]]; then
+              cat target/scans/summary.md
+            else
+              echo "_No scan summary produced._"
+            fi
+            echo ""
+            echo "## Push"
+            echo ""
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              echo "Skipped on pull_request."
+            elif [[ "${{ steps.quay.outputs.mode }}" == "skip" || -z "${{ steps.quay.outputs.mode }}" ]]; then
+              echo "Skipped — no Quay credentials."
+            elif [[ -n "${{ steps.push.outputs.tags }}" ]]; then
+              echo "Mode: \`${{ steps.quay.outputs.mode }}\`"
+              echo ""
+              echo '```'
+              echo "${{ steps.push.outputs.tags }}"
+              echo '```'
+            else
+              echo "Push step did not run or produced no tags."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload SBOMs and scan reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-scans
+          path: |
+            target/scans/*.json
+            target/scans/summary.md
+          if-no-files-found: warn
+          retention-days: 30
