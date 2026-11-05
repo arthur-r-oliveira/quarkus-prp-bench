@@ -575,15 +575,15 @@ LW_USER='<org>|<service-account>' LW_TOKEN='<token>' tools/scan-images.sh
 
 `Containerfile` is deliberately frozen on UBI8 / JDK 17. It is the control in the
 comparison — modernising it destroys the measurement. The hardened catalog publishes no
-JDK 17 tag, so the new variants run on 21; bytecode built at release 17 runs there
-unchanged, which is why `pom.xml` is not touched.
+JDK 17 tag, so the new variants run on 21; `maven.compiler.release` stays at 17 so
+bytecode built for 17 runs unchanged on the 21 JVM.
 
 ### Scanning the variants
 
 `tools/scan-images.sh` builds each variant and runs grype, trivy and a syft CycloneDX SBOM
 over all of them, writing `target/scans/summary.md`. Nothing is installed on the host —
 grype, syft and cosign are themselves pulled from the hardened catalog. Measured on one
-laptop on 2026-10-20, grype DB built 2026-10-20T06:29:49Z:
+laptop on 2026-10-20 (Quarkus **3.15.1**), grype DB built 2026-10-20T06:29:49Z:
 
 | Variant | Size | grype total | grype OS (rpm) | grype app (jar) |
 |---|---|---|---|---|
@@ -591,16 +591,23 @@ laptop on 2026-10-20, grype DB built 2026-10-20T06:29:49Z:
 | `hardened` | 312 MB | 72 | 0 | 72 |
 | `hardened-lightwell` | 312 MB | 72 | 0 | 72 |
 
-The split is the point. The hardened base takes OS findings from 707 to 0; the 72
-application findings are **unchanged**, because they come from the uber-jar and no base
-image can touch them.
+The split is the point. The hardened base takes OS findings from 707 to 0; with 3.15.1
+the 72 application findings were **unchanged** across bases, because they come from the
+uber-jar and no base image can touch them.
 
-`hardened-lightwell` scoring identically to `hardened` is the expected result, not a
-failure: Lightwell `validated` supplies *securely rebuilt* artifacts at the *same
-versions* (41 of 371 jars in this build; the rest fall back to Central), so a scanner
-matching on coordinates reports the same CVEs. Its value is provenance, not CVE reduction —
-moving the application count is what the `remediated` repository and its `.rhlw-*` version
-pins are for.
+Re-measured on 2026-11-05 after bumping the Quarkus platform BOM to **3.40.1.1** (current
+LTS; Netty 4.1.139, Jackson 2.21.7), grype DB built 2026-11-05T06:21:06Z:
+
+| Variant | Size | grype total | grype OS (rpm) | grype app (jar) | crit | high |
+|---|---|---|---|---|---|---|
+| `legacy` | 384 MB | 837 | 765 | 72 | 2 | 116 |
+| `hardened` | 313 MB | 129 | 129 | **0** | 0 | 4 |
+
+So the app-jar residue is cleared by the platform bump, not by Lightwell `validated`.
+OS findings on `hi/openjdk:21` have reappeared as that base and the vuln DB moved —
+rebuild the hardened tag periodically; do not treat “0 OS” as a permanent property.
+`validated` remains a provenance story; `remediated` + `.rhlw-*` pins are still the
+path if a future BOM leaves a specific coordinate behind.
 
 These are scanner results at a point in time, not properties of the images — re-run the
 script rather than quoting the table. Full walkthrough, including the debuggability
