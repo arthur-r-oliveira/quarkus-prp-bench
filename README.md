@@ -104,8 +104,11 @@ owns.
 | `:hardened` | `hi/openjdk:21` | Maven Central | Base-image effect |
 | `:hardened-lightwell` | `hi/openjdk:21` | Lightwell `validated` | Provenance effect |
 
-`Containerfile` is **frozen** on UBI8/JDK17 — modernising it destroys the
-comparison. Bytecode stays `release=17`; hardened runs on 21.
+`Containerfile` stays on **UBI8/JDK17** (do not bump the base tag — that
+destroys the comparison) and applies **`dnf update`** — the old remediation
+model. Hardened variants cannot: `hi/openjdk` ships no package manager, so they
+move by rebuilding against a newer catalog digest. Bytecode stays `release=17`;
+hardened runs on 21.
 
 ### Measured results (dated — re-run before quoting)
 

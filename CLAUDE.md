@@ -30,20 +30,22 @@ There is no Maven wrapper, and `mvn` is not necessarily on PATH in this environm
 `ubi8/openjdk-17-runtime`). Note that `ubi8/openjdk-17-runtime` **does** ship `jcmd`, which is
 how the receive-path regression documented in the README was diagnosed in-pod.
 
-### Three image variants — `Containerfile` is frozen
+### Three image variants — legacy keeps UBI8 + `dnf update`
 
 The same application builds three ways for the supply-chain demo
 (`docs/demo-supply-chain.md`):
 
 | Tag | File | Runtime base | Deps |
 |---|---|---|---|
-| `:legacy` | `Containerfile` | `ubi8/openjdk-17-runtime:1.20` | Maven Central |
+| `:legacy` | `Containerfile` | `ubi8/openjdk-17-runtime:1.20` + `dnf update` | Maven Central |
 | `:hardened` | `Containerfile.hardened` | `hi/openjdk:21` | Maven Central |
 | `:hardened-lightwell` | `Containerfile.lightwell` | `hi/openjdk:21` | Lightwell `validated` |
 
-- **`Containerfile` must not be modernised.** It is the control in a measured comparison.
-  Bumping its base, its JDK or its pinned `1.20` tag silently invalidates every number in
-  the README's image-variant table. Changes go in the `.hardened` / `.lightwell` files.
+- **`Containerfile` keeps the UBI8/JDK17 `1.20` pin** (do not bump base/JDK — that
+  invalidates the comparison) and runs **`dnf update`** as the old remediation model.
+  Hardened images have no package manager; they refresh by rebuilding against a newer
+  catalog digest. CI rebuilds **daily**. Other modernisation goes in `.hardened` /
+  `.lightwell` only.
 - **The builder stage stays on UBI.** There is no `hi/maven`, and hardened images ship no
   package manager, so `RUN` is impossible in a hardened stage. `ubi9/openjdk-21` has Maven 3.9.
 - **The hardened catalog has no JDK 17** (`hi/openjdk` publishes `21`, `25`, `21-fips`).

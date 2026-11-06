@@ -18,7 +18,8 @@ on:
   pull_request:
     branches: [ "main" ]
   schedule:
-    - cron: '17 3 * * 1'
+    # Daily: legacy picks up dnf updates; hardened picks up newer hi/openjdk:21 content.
+    - cron: '17 3 * * *'
   workflow_dispatch:
 
 permissions:

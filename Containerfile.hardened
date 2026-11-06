@@ -1,9 +1,9 @@
 # Variant B of the supply-chain demo: same application, Red Hat Hardened Image runtime.
-# See docs/demo-supply-chain.md. Containerfile (the legacy UBI8/JDK17 variant) is kept
-# frozen as the "before" artifact and must not be modernised.
+# See docs/demo-supply-chain.md. Legacy Containerfile stays on UBI8/JDK17 + dnf update;
+# do not bump that base tag. This image has no package manager — refresh by rebuilding.
 #
 # The builder stage stays on UBI because there is no hardened Maven image and hardened
-# images ship no shell or package manager, so RUN is impossible in a hardened stage.
+# images ship no package manager, so dnf/RUN package installs are impossible here.
 FROM registry.access.redhat.com/ubi9/openjdk-21:latest AS builder
 USER 0
 WORKDIR /build

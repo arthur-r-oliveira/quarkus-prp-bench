@@ -39,8 +39,10 @@ true today. Scanner counts are a function of the database, and the database move
 Three rather than two on purpose. Going straight from `:legacy` to a hardened-plus-Lightwell
 image confounds the two changes and neither number means anything on its own.
 
-[Containerfile](../Containerfile) is **frozen** as the legacy artifact. It is the control in
-the experiment; modernising it destroys the comparison.
+[Containerfile](../Containerfile) stays pinned on UBI8/JDK17 as the legacy artifact
+and runs **`dnf update`** (the pre-Hardened remediation habit). Do not bump its
+base tag or JDK — that destroys the comparison. Hardened variants have no `dnf`;
+they refresh by rebuilding against a newer `hi/openjdk:21` digest.
 
 ### Why the builder stage is still UBI
 
@@ -221,7 +223,7 @@ tooling drawing the conclusion.
 
 [.github/workflows/build-push-scan.yml](../.github/workflows/build-push-scan.yml) runs
 **Build → Push → Scan → Report** on a self-hosted runner labeled `prp-bench`. It pushes
-to `quay.io/rhn_support_arolivei/prp-bench` on every merge to `main`, on a weekly
+to `quay.io/rhn_support_arolivei/prp-bench` on every merge to `main`, on a **daily**
 schedule, and on manual dispatch. Pull requests build/scan/report but never push.
 
 One-time setup:
@@ -319,5 +321,5 @@ Numbers in this file are from one laptop on one date with one database version. 
 `tools/scan-images.sh` before any customer conversation and use what it prints, not what is
 written above. The CI workflow
 ([.github/workflows/build-push-scan.yml](../.github/workflows/build-push-scan.yml)) does the same thing
-weekly and publishes the table to the run summary, which is the easiest way to get a current
+daily and publishes the table to the run summary, which is the easiest way to get a current
 screenshot without a local build.
