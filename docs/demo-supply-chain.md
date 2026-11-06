@@ -40,9 +40,10 @@ Three rather than two on purpose. Going straight from `:legacy` to a hardened-pl
 image confounds the two changes and neither number means anything on its own.
 
 [Containerfile](../Containerfile) stays pinned on UBI8/JDK17 as the legacy artifact
-and runs **`dnf update`** (the pre-Hardened remediation habit). Do not bump its
-base tag or JDK — that destroys the comparison. Hardened variants have no `dnf`;
-they refresh by rebuilding against a newer `hi/openjdk:21` digest.
+and runs **`microdnf update`** (the pre-Hardened remediation habit;
+`ubi8/openjdk` ships microdnf, not full dnf). Do not bump its base tag or JDK —
+that destroys the comparison. Hardened variants have no package manager; they
+refresh by rebuilding against a newer `hi/openjdk:21` digest.
 
 ### Why the builder stage is still UBI
 

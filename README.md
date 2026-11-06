@@ -105,9 +105,10 @@ owns.
 | `:hardened-lightwell` | `hi/openjdk:21` | Lightwell `validated` | Provenance effect |
 
 `Containerfile` stays on **UBI8/JDK17** (do not bump the base tag — that
-destroys the comparison) and applies **`dnf update`** — the old remediation
-model. Hardened variants cannot: `hi/openjdk` ships no package manager, so they
-move by rebuilding against a newer catalog digest. Bytecode stays `release=17`;
+destroys the comparison) and applies **`microdnf update`** — the old
+remediation model (`ubi8/openjdk` ships microdnf, not full dnf). Hardened
+variants cannot: `hi/openjdk` ships no package manager, so they move by
+rebuilding against a newer catalog digest. Bytecode stays `release=17`;
 hardened runs on 21.
 
 ### Measured results (dated — re-run before quoting)

@@ -37,15 +37,15 @@ The same application builds three ways for the supply-chain demo
 
 | Tag | File | Runtime base | Deps |
 |---|---|---|---|
-| `:legacy` | `Containerfile` | `ubi8/openjdk-17-runtime:1.20` + `dnf update` | Maven Central |
+| `:legacy` | `Containerfile` | `ubi8/openjdk-17-runtime:1.20` + `microdnf update` | Maven Central |
 | `:hardened` | `Containerfile.hardened` | `hi/openjdk:21` | Maven Central |
 | `:hardened-lightwell` | `Containerfile.lightwell` | `hi/openjdk:21` | Lightwell `validated` |
 
 - **`Containerfile` keeps the UBI8/JDK17 `1.20` pin** (do not bump base/JDK — that
-  invalidates the comparison) and runs **`dnf update`** as the old remediation model.
-  Hardened images have no package manager; they refresh by rebuilding against a newer
-  catalog digest. CI rebuilds **daily**. Other modernisation goes in `.hardened` /
-  `.lightwell` only.
+  invalidates the comparison) and runs **`microdnf update`** as the old remediation
+  model (`ubi8/openjdk` has microdnf, not full dnf). Hardened images have no package
+  manager; they refresh by rebuilding against a newer catalog digest. CI rebuilds
+  **daily**. Other modernisation goes in `.hardened` / `.lightwell` only.
 - **The builder stage stays on UBI.** There is no `hi/maven`, and hardened images ship no
   package manager, so `RUN` is impossible in a hardened stage. `ubi9/openjdk-21` has Maven 3.9.
 - **The hardened catalog has no JDK 17** (`hi/openjdk` publishes `21`, `25`, `21-fips`).

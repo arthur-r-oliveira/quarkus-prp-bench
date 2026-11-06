@@ -1,6 +1,6 @@
 # Variant B of the supply-chain demo: same application, Red Hat Hardened Image runtime.
-# See docs/demo-supply-chain.md. Legacy Containerfile stays on UBI8/JDK17 + dnf update;
-# do not bump that base tag. This image has no package manager — refresh by rebuilding.
+# See docs/demo-supply-chain.md. Legacy Containerfile stays on UBI8/JDK17 + microdnf
+# update; do not bump that base tag. This image has no package manager — rebuild to refresh.
 #
 # The builder stage stays on UBI because there is no hardened Maven image and hardened
 # images ship no package manager, so dnf/RUN package installs are impossible here.
