@@ -26,27 +26,28 @@ podman build -t quay.io/rhn_support_arolivei/prp-bench:latest -f Containerfile .
 ```
 
 There is no Maven wrapper, and `mvn` is not necessarily on PATH in this environment — the
-`Containerfile` does a two-stage build (`ubi8/openjdk-17` builder producing an uber-jar, then
-`ubi8/openjdk-17-runtime`). Note that `ubi8/openjdk-17-runtime` **does** ship `jcmd`, which is
+`Containerfile` does a two-stage build (`ubi9/openjdk-17` builder producing an uber-jar, then
+`ubi9/openjdk-17-runtime`). Note that `ubi9/openjdk-17-runtime` **does** ship `jcmd`, which is
 how the receive-path regression documented in the README was diagnosed in-pod.
 
-### Three image variants — legacy keeps UBI8 + `dnf update`
+### Four image variants — legacy keeps UBI9 + `microdnf update`
 
-The same application builds three ways for the supply-chain demo
+The same application builds four ways for the supply-chain demo
 (`docs/demo-supply-chain.md`):
 
 | Tag | File | Runtime base | Deps |
 |---|---|---|---|
-| `:legacy` | `Containerfile` | `ubi8/openjdk-17-runtime:1.20` + `microdnf update` | Maven Central |
+| `:legacy` | `Containerfile` | `ubi9/openjdk-17-runtime:1.24` + `microdnf update` | Maven Central |
 | `:legacy-lightwell` | `Containerfile.legacy-lightwell` | same + `microdnf update` | Lightwell `validated` |
 | `:hardened` | `Containerfile.hardened` | `hi/openjdk:21` | Maven Central |
 | `:hardened-lightwell` | `Containerfile.lightwell` | `hi/openjdk:21` | Lightwell `validated` |
 
-- **`Containerfile` keeps the UBI8/JDK17 `1.20` pin** (do not bump base/JDK — that
-  invalidates the comparison) and runs **`microdnf update`** as the old remediation
-  model (`ubi8/openjdk` has microdnf, not full dnf). Hardened images have no package
-  manager; they refresh by rebuilding against a newer catalog digest. CI rebuilds
-  **daily**. Other modernisation goes in `.hardened` / `.lightwell` only.
+- **`Containerfile` stays on UBI9/JDK17 `1.24`** with **`microdnf update`** (current
+  UBI practice; `ubi9/openjdk` has microdnf, not full dnf). Do not swap this path
+  onto `hi/openjdk` or bump the app JDK — that invalidates the UBI vs HI comparison.
+  Hardened images have no package manager; they refresh by rebuilding against a
+  newer catalog digest. CI rebuilds **daily**. HI-specific modernisation stays in
+  `.hardened` / `.lightwell` only.
 - **The builder stage stays on UBI.** There is no `hi/maven`, and hardened images ship no
   package manager, so `RUN` is impossible in a hardened stage. `ubi9/openjdk-21` has Maven 3.9.
 - **The hardened catalog has no JDK 17** (`hi/openjdk` publishes `21`, `25`, `21-fips`).

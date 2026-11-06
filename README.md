@@ -100,17 +100,17 @@ owns.
 
 | Tag | Base | Dependencies | Isolates |
 |-----|------|--------------|----------|
-| `:legacy` | `ubi8/openjdk-17-runtime:1.20` | Maven Central | Control (“before”) |
-| `:legacy-lightwell` | `ubi8/openjdk-17-runtime:1.20` | Lightwell `validated` | Lightwell on legacy base |
+| `:legacy` | `ubi9/openjdk-17-runtime:1.24` | Maven Central | Control (“before”) |
+| `:legacy-lightwell` | `ubi9/openjdk-17-runtime:1.24` | Lightwell `validated` | Lightwell on legacy base |
 | `:hardened` | `hi/openjdk:21` | Maven Central | Hardened Images effect |
 | `:hardened-lightwell` | `hi/openjdk:21` | Lightwell `validated` | Both layers |
 
-`Containerfile` stays on **UBI8/JDK17** (do not bump the base tag — that
-destroys the comparison) and applies **`microdnf update`** — the old
-remediation model (`ubi8/openjdk` ships microdnf, not full dnf). Hardened
-variants cannot: `hi/openjdk` ships no package manager, so they move by
-rebuilding against a newer catalog digest. Bytecode stays `release=17`;
-hardened runs on 21.
+`Containerfile` stays on **UBI9/JDK17** with **`microdnf update`** — current
+UBI practice and the old remediation model (`ubi9/openjdk` ships microdnf, not
+full dnf). Do not swap this path onto `hi/openjdk` or bump the app JDK: that
+destroys the side-by-side with Hardened Images. Hardened variants cannot run
+`microdnf`; they move by rebuilding against a newer catalog digest. Bytecode
+stays `release=17`; hardened runs on 21.
 
 ### Measured results (dated — re-run before quoting)
 

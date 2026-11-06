@@ -1,4 +1,4 @@
-# Fourth supply-chain variant: legacy UBI8/JDK17 runtime + Lightwell Network deps.
+# Fourth supply-chain variant: legacy UBI9/JDK17 runtime + Lightwell Network deps.
 # Completes the 2×2 matrix with Containerfile / .hardened / .lightwell so the
 # Lightwell effect is not confounded with the Hardened Images base swap.
 # See docs/demo-supply-chain.md.
@@ -8,7 +8,7 @@
 #   podman build -f Containerfile.legacy-lightwell \
 #     --secret id=lightwell-settings,src=target/maven-settings-lightwell.xml \
 #     -t prp-bench:legacy-lightwell .
-FROM registry.access.redhat.com/ubi8/openjdk-17:1.20 AS builder
+FROM registry.access.redhat.com/ubi9/openjdk-17:1.24 AS builder
 USER 0
 WORKDIR /build
 RUN microdnf -y update && microdnf clean all
@@ -18,7 +18,7 @@ RUN --mount=type=secret,id=lightwell-settings,uid=0,mode=0400 \
     mvn package -DskipTests -Dquarkus.package.jar.type=uber-jar \
         --settings /run/secrets/lightwell-settings
 
-FROM registry.access.redhat.com/ubi8/openjdk-17-runtime:1.20
+FROM registry.access.redhat.com/ubi9/openjdk-17-runtime:1.24
 USER 0
 RUN microdnf -y update && microdnf clean all
 USER 185

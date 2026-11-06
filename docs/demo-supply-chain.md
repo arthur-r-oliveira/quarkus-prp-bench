@@ -28,12 +28,12 @@ true today. Scanner counts are a function of the database, and the database move
 
 ---
 
-## The three variants
+## The four variants
 
 | Tag | Builder | Runtime base | Dependencies from | Isolates |
 |---|---|---|---|---|
-| `:legacy` | `ubi8/openjdk-17:1.20` | `ubi8/openjdk-17-runtime:1.20` | Maven Central | the "before" |
-| `:legacy-lightwell` | `ubi8/openjdk-17:1.20` | `ubi8/openjdk-17-runtime:1.20` | Lightwell `validated` | Lightwell on the legacy base |
+| `:legacy` | `ubi9/openjdk-17:1.24` | `ubi9/openjdk-17-runtime:1.24` | Maven Central | the "before" |
+| `:legacy-lightwell` | `ubi9/openjdk-17:1.24` | `ubi9/openjdk-17-runtime:1.24` | Lightwell `validated` | Lightwell on the legacy base |
 | `:hardened` | `ubi9/openjdk-21:latest` | `hi/openjdk:21` | Maven Central | the **base image** effect |
 | `:hardened-lightwell` | `ubi9/openjdk-21:latest` | `hi/openjdk:21` | Lightwell `validated` | both layers |
 
@@ -41,11 +41,12 @@ Four tags on purpose — a 2×2 of {legacy, hardened} × {Central, Lightwell}. S
 `:legacy-lightwell` confounds Lightwell with the base swap; going straight from
 `:legacy` to `:hardened-lightwell` makes neither number meaningful on its own.
 
-[Containerfile](../Containerfile) stays pinned on UBI8/JDK17 as the legacy artifact
-and runs **`microdnf update`** (the pre-Hardened remediation habit;
-`ubi8/openjdk` ships microdnf, not full dnf). Do not bump its base tag or JDK —
-that destroys the comparison. Hardened variants have no package manager; they
-refresh by rebuilding against a newer `hi/openjdk:21` digest.
+[Containerfile](../Containerfile) is the UBI control: **UBI9/JDK17** plus
+**`microdnf update`** (current UBI practice and the pre-Hardened remediation habit;
+`ubi9/openjdk` ships microdnf, not full dnf). Keep it on UBI9/JDK17 — do not move
+this path onto `hi/openjdk` or bump the app JDK; that destroys the side-by-side
+with Hardened Images. Hardened variants have no package manager; they refresh by
+rebuilding against a newer `hi/openjdk:21` digest.
 
 ### Why the builder stage is still UBI
 

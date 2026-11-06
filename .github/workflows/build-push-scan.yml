@@ -70,7 +70,7 @@ jobs:
           fi
 
       # ----------------------------------------------------------------- Build
-      - name: Build legacy variant (UBI8 / JDK 17)
+      - name: Build legacy variant (UBI9 / JDK 17)
         run: podman build -t prp-bench:legacy -f Containerfile .
 
       - name: Build hardened variant (hi/openjdk:21)
