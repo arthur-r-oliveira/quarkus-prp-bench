@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 #
-# Build the three PRP Bench image variants and scan them with grype, trivy and syft.
+# Build the PRP Bench image variants (2×2: base × dependency source) and scan them
+# with grype, trivy and syft.
 #
 # Nothing is installed on the host: every scanner runs as a container, and grype/syft
 # come from the Red Hat Hardened Images catalog themselves.
 #
 #   tools/scan-images.sh                 # build + scan legacy and hardened
-#   LW_USER=... LW_TOKEN=... tools/scan-images.sh    # also build + scan hardened-lightwell
+#   LW_USER=... LW_TOKEN=... tools/scan-images.sh    # + legacy-lightwell + hardened-lightwell
 #   LW_REPO=remediated LW_USER=... LW_TOKEN=... tools/scan-images.sh
 #   tools/scan-images.sh --no-build      # scan images already present locally (used by CI)
 #
@@ -72,37 +73,20 @@ if [[ -n "${LW_USER:-}" && -n "${LW_TOKEN:-}" ]]; then
     warn "LW_USER does not contain '|'. Lightwell expects \"XXXXXXX|service-account-name\","
     warn "not the client-ID UUID. Expect a 401 from packages.redhat.com."
   fi
-  VARIANTS+=(hardened-lightwell)
+  # Full 2×2: base {legacy,hardened} × deps {Central,Lightwell}.
+  VARIANTS+=(legacy-lightwell hardened-lightwell)
 else
-  warn "LW_USER/LW_TOKEN not set — skipping the hardened-lightwell variant."
+  warn "LW_USER/LW_TOKEN not set — skipping Lightwell variants (legacy-lightwell, hardened-lightwell)."
   warn "Lightwell Network repositories require a service account; they 401 anonymously."
 fi
 
-# ---------------------------------------------------------------- build
-
-if [[ "${BUILD}" == "1" ]]; then
-  for v in "${VARIANTS[@]}"; do
-    log "Building ${IMAGE_NAME}:${v}"
-    case "${v}" in
-      legacy)
-        podman build -t "${IMAGE_NAME}:legacy" -f "${REPO_ROOT}/Containerfile" "${REPO_ROOT}"
-        ;;
-      hardened)
-        podman build -t "${IMAGE_NAME}:hardened" -f "${REPO_ROOT}/Containerfile.hardened" "${REPO_ROOT}"
-        ;;
-      hardened-lightwell)
-        # Render the template with the service-account credentials. Written with a
-        # restrictive umask and under target/, which is gitignored. Removed by the
-        # EXIT trap above.
-        log "Lightwell repository: ${LW_REPO}"
-        # Substituted in python, not sed: LW_USER is "<org-id>|<name>" and the pipe is
-        # sed's delimiter here, so the expansion splits the s|||g expression and sed
-        # fails with "unknown option to `s'". Credentials are passed through the
-        # environment rather than argv so they never appear in the process list, and
-        # str.replace treats them as literal text whatever characters they contain.
-        ( umask 077
-          LW_ACTIVE_PROFILE="lightwell-${LW_REPO}" \
-          python3 -I -c '
+render_lightwell_settings() {
+  # Substituted in python, not sed: LW_USER is "<org-id>|<name>" and the pipe is
+  # sed's delimiter. Credentials stay in the environment, not argv.
+  log "Lightwell repository: ${LW_REPO}"
+  ( umask 077
+    LW_ACTIVE_PROFILE="lightwell-${LW_REPO}" \
+    python3 -I -c '
 import os, sys
 src, dst = sys.argv[1], sys.argv[2]
 with open(src, encoding="utf-8") as fh:
@@ -112,38 +96,64 @@ for key in ("LW_USER", "LW_TOKEN", "LW_ACTIVE_PROFILE"):
 with open(dst, "w", encoding="utf-8") as fh:
     fh.write(text)
 ' "${REPO_ROOT}/tools/maven-settings-lightwell.xml.template" "${SETTINGS}" )
+  if ! python3 -I -c 'import sys,xml.etree.ElementTree as ET; ET.parse(sys.argv[1])' \
+       "${SETTINGS}" 2>/dev/null; then
+    echo "rendered ${SETTINGS} is not well-formed XML" >&2
+    echo "check tools/maven-settings-lightwell.xml.template for placeholder names" >&2
+    exit 1
+  fi
+}
 
-        # Fail here rather than four minutes into a Maven run. Tokens are JWTs and can
-        # contain "--", which is illegal inside an XML comment, so a stray placeholder
-        # mention in the template renders a file no parser will accept.
-        if ! python3 -I -c 'import sys,xml.etree.ElementTree as ET; ET.parse(sys.argv[1])' \
-             "${SETTINGS}" 2>/dev/null; then
-          echo "rendered ${SETTINGS} is not well-formed XML" >&2
-          echo "check tools/maven-settings-lightwell.xml.template for placeholder names" >&2
-          echo "appearing outside the <servers>/<activeProfiles> elements" >&2
-          exit 1
-        fi
+report_lightwell_jar_ratio() {
+  local logf="$1"
+  local lw_jars central_jars total_jars
+  # Maven logs "Downloading from" on every attempt and "Downloaded from" only on
+  # success. Count jar successes — poms are resolution metadata.
+  lw_jars=$(grep -c 'Downloaded from lightwell[^:]*:.*\.jar' "${logf}" || true)
+  central_jars=$(grep -c 'Downloaded from central:.*\.jar' "${logf}" || true)
+  total_jars=$(( lw_jars + central_jars ))
+  if (( lw_jars > 0 )); then
+    log "Lightwell supplied ${lw_jars}/${total_jars} jars (${central_jars} from Central) [${logf##*/}]"
+    warn "Report that ratio, not 'built with Lightwell'. The rest came from Central."
+  else
+    warn "Zero jars resolved from Lightwell in ${logf##*/} — this build is Maven Central only."
+    warn "Do not present it as a Lightwell result."
+  fi
+}
+
+# ---------------------------------------------------------------- build
+
+if [[ "${BUILD}" == "1" ]]; then
+  NEED_LW=0
+  for v in "${VARIANTS[@]}"; do
+    [[ "${v}" == *-lightwell ]] && NEED_LW=1
+  done
+  if [[ "${NEED_LW}" == "1" ]]; then
+    render_lightwell_settings
+  fi
+
+  for v in "${VARIANTS[@]}"; do
+    log "Building ${IMAGE_NAME}:${v}"
+    case "${v}" in
+      legacy)
+        podman build -t "${IMAGE_NAME}:legacy" -f "${REPO_ROOT}/Containerfile" "${REPO_ROOT}"
+        ;;
+      hardened)
+        podman build -t "${IMAGE_NAME}:hardened" -f "${REPO_ROOT}/Containerfile.hardened" "${REPO_ROOT}"
+        ;;
+      legacy-lightwell)
+        podman build -t "${IMAGE_NAME}:legacy-lightwell" \
+          -f "${REPO_ROOT}/Containerfile.legacy-lightwell" \
+          --secret "id=lightwell-settings,src=${SETTINGS}" \
+          "${REPO_ROOT}" 2>&1 | tee "${OUT}/build-legacy-lightwell.log"
+        report_lightwell_jar_ratio "${OUT}/build-legacy-lightwell.log"
+        ;;
+      hardened-lightwell)
         podman build -t "${IMAGE_NAME}:hardened-lightwell" \
           -f "${REPO_ROOT}/Containerfile.lightwell" \
           --secret "id=lightwell-settings,src=${SETTINGS}" \
-          "${REPO_ROOT}" 2>&1 | tee "${OUT}/build-lightwell.log"
-        # How much actually came from Lightwell? Maven logs "Downloading from X" when it
-        # *tries* a repository and "Downloaded from X" only on success, then silently
-        # falls back to the next repository. Grepping for the hostname alone counts the
-        # failed attempts too and badly overstates coverage — a real build here logged
-        # 969 Lightwell attempts for 116 successes. Count successes, and count jars
-        # separately: poms are resolution metadata, jars are what lands in the uber-jar
-        # and therefore what a scanner sees.
-        lw_jars=$(grep -c 'Downloaded from lightwell[^:]*:.*\.jar' "${OUT}/build-lightwell.log" || true)
-        central_jars=$(grep -c 'Downloaded from central:.*\.jar' "${OUT}/build-lightwell.log" || true)
-        total_jars=$(( lw_jars + central_jars ))
-        if (( lw_jars > 0 )); then
-          log "Lightwell supplied ${lw_jars}/${total_jars} jars (${central_jars} from Central)"
-          warn "Report that ratio, not 'built with Lightwell'. The rest came from Central."
-        else
-          warn "Zero jars resolved from Lightwell — this build is Maven Central only."
-          warn "Do not present it as a Lightwell result."
-        fi
+          "${REPO_ROOT}" 2>&1 | tee "${OUT}/build-hardened-lightwell.log"
+        report_lightwell_jar_ratio "${OUT}/build-hardened-lightwell.log"
         ;;
     esac
   done

@@ -1,0 +1,28 @@
+# Fourth supply-chain variant: legacy UBI8/JDK17 runtime + Lightwell Network deps.
+# Completes the 2×2 matrix with Containerfile / .hardened / .lightwell so the
+# Lightwell effect is not confounded with the Hardened Images base swap.
+# See docs/demo-supply-chain.md.
+#
+# Identical to Containerfile except Maven resolves via Lightwell settings.
+# Build with a secret mount:
+#   podman build -f Containerfile.legacy-lightwell \
+#     --secret id=lightwell-settings,src=target/maven-settings-lightwell.xml \
+#     -t prp-bench:legacy-lightwell .
+FROM registry.access.redhat.com/ubi8/openjdk-17:1.20 AS builder
+USER 0
+WORKDIR /build
+RUN microdnf -y update && microdnf clean all
+COPY pom.xml .
+COPY src src
+RUN --mount=type=secret,id=lightwell-settings,uid=0,mode=0400 \
+    mvn package -DskipTests -Dquarkus.package.jar.type=uber-jar \
+        --settings /run/secrets/lightwell-settings
+
+FROM registry.access.redhat.com/ubi8/openjdk-17-runtime:1.20
+USER 0
+RUN microdnf -y update && microdnf clean all
+USER 185
+WORKDIR /app
+COPY --from=builder /build/target/*-runner.jar app.jar
+EXPOSE 8080 9200/udp 9201/udp
+ENTRYPOINT ["java", "-jar", "app.jar"]

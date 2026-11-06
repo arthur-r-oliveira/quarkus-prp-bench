@@ -101,8 +101,9 @@ owns.
 | Tag | Base | Dependencies | Isolates |
 |-----|------|--------------|----------|
 | `:legacy` | `ubi8/openjdk-17-runtime:1.20` | Maven Central | Control (“before”) |
-| `:hardened` | `hi/openjdk:21` | Maven Central | Base-image effect |
-| `:hardened-lightwell` | `hi/openjdk:21` | Lightwell `validated` | Provenance effect |
+| `:legacy-lightwell` | `ubi8/openjdk-17-runtime:1.20` | Lightwell `validated` | Lightwell on legacy base |
+| `:hardened` | `hi/openjdk:21` | Maven Central | Hardened Images effect |
+| `:hardened-lightwell` | `hi/openjdk:21` | Lightwell `validated` | Both layers |
 
 `Containerfile` stays on **UBI8/JDK17** (do not bump the base tag — that
 destroys the comparison) and applies **`microdnf update`** — the old
@@ -121,10 +122,11 @@ hardened runs on 21.
 | `hardened` | 72 | 0 | 72 |
 | `hardened-lightwell` | 72 | 0 | 72 |
 
-Hardened Images collapsed **OS** findings. App jars were unchanged across bases.
-Lightwell **`validated` matched hardened on CVE count** — expected: same
-versions, SLSA L3 provenance, not patches. In that build ~11% of jars came from
-Lightwell; the rest fell back to Central.
+(Three tags then; `:legacy-lightwell` completes the matrix now.) Hardened Images
+collapsed **OS** findings. App jars were unchanged across bases. Lightwell
+**`validated` matched on CVE count** — expected: same versions, SLSA L3
+provenance, not patches. In that build ~11% of jars came from Lightwell; the
+rest fell back to Central.
 
 **2026-11-05**, Quarkus **3.40.1.1** LTS, grype DB 2026-11-05T06:21:06Z:
 
@@ -154,7 +156,8 @@ Customer view: [Quay tags](https://quay.io/repository/rhn_support_arolivei/prp-b
 ```bash
 podman build -t prp-bench:legacy   -f Containerfile .
 podman build -t prp-bench:hardened -f Containerfile.hardened .
-LW_USER='<org>|<sa>' LW_TOKEN='<token>' tools/scan-images.sh   # + lightwell
+# With Lightwell credentials: also builds :legacy-lightwell and :hardened-lightwell
+LW_USER='<org>|<sa>' LW_TOKEN='<token>' tools/scan-images.sh
 tools/quay-scan-report.sh   # Clair table for published tags
 ```
 

@@ -27,7 +27,7 @@ REPOSITORY="${QUAY_REPOSITORY:-prp-bench}"
 REGISTRY_UI="https://quay.io/repository/${NAMESPACE}/${REPOSITORY}?tab=tags"
 API="https://quay.io/api/v1/repository/${NAMESPACE}/${REPOSITORY}"
 
-IFS=' ' read -r -a TAGS <<< "${QUAY_TAGS:-legacy hardened hardened-lightwell latest}"
+IFS=' ' read -r -a TAGS <<< "${QUAY_TAGS:-legacy legacy-lightwell hardened hardened-lightwell latest}"
 POLL_SECONDS="${QUAY_POLL_SECONDS:-300}"
 POLL_INTERVAL="${QUAY_POLL_INTERVAL:-15}"
 

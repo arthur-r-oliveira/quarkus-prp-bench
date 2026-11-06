@@ -33,11 +33,13 @@ true today. Scanner counts are a function of the database, and the database move
 | Tag | Builder | Runtime base | Dependencies from | Isolates |
 |---|---|---|---|---|
 | `:legacy` | `ubi8/openjdk-17:1.20` | `ubi8/openjdk-17-runtime:1.20` | Maven Central | the "before" |
+| `:legacy-lightwell` | `ubi8/openjdk-17:1.20` | `ubi8/openjdk-17-runtime:1.20` | Lightwell `validated` | Lightwell on the legacy base |
 | `:hardened` | `ubi9/openjdk-21:latest` | `hi/openjdk:21` | Maven Central | the **base image** effect |
-| `:hardened-lightwell` | `ubi9/openjdk-21:latest` | `hi/openjdk:21` | Lightwell `validated` | the **dependency** effect |
+| `:hardened-lightwell` | `ubi9/openjdk-21:latest` | `hi/openjdk:21` | Lightwell `validated` | both layers |
 
-Three rather than two on purpose. Going straight from `:legacy` to a hardened-plus-Lightwell
-image confounds the two changes and neither number means anything on its own.
+Four tags on purpose — a 2×2 of {legacy, hardened} × {Central, Lightwell}. Skipping
+`:legacy-lightwell` confounds Lightwell with the base swap; going straight from
+`:legacy` to `:hardened-lightwell` makes neither number meaningful on its own.
 
 [Containerfile](../Containerfile) stays pinned on UBI8/JDK17 as the legacy artifact
 and runs **`microdnf update`** (the pre-Hardened remediation habit;

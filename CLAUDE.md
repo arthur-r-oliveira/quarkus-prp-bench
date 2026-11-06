@@ -38,6 +38,7 @@ The same application builds three ways for the supply-chain demo
 | Tag | File | Runtime base | Deps |
 |---|---|---|---|
 | `:legacy` | `Containerfile` | `ubi8/openjdk-17-runtime:1.20` + `microdnf update` | Maven Central |
+| `:legacy-lightwell` | `Containerfile.legacy-lightwell` | same + `microdnf update` | Lightwell `validated` |
 | `:hardened` | `Containerfile.hardened` | `hi/openjdk:21` | Maven Central |
 | `:hardened-lightwell` | `Containerfile.lightwell` | `hi/openjdk:21` | Lightwell `validated` |
 

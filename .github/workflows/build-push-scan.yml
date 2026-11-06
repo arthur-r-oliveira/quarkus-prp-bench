@@ -76,11 +76,11 @@ jobs:
       - name: Build hardened variant (hi/openjdk:21)
         run: podman build -t prp-bench:hardened -f Containerfile.hardened .
 
-      - name: Build hardened-lightwell variant
+      - name: Build Lightwell variants (legacy + hardened)
         run: |
           set -euo pipefail
           if [[ -z "${LW_USER:-}" || -z "${LW_TOKEN:-}" ]]; then
-            echo "Skipping lightwell — no LIGHTWELL secrets and no local ci.env"
+            echo "Skipping Lightwell variants — no LIGHTWELL secrets and no local ci.env"
             exit 0
           fi
           mkdir -p target
@@ -95,6 +95,9 @@ jobs:
           with open(sys.argv[2], "w", encoding="utf-8") as fh:
               fh.write(text)
           ' tools/maven-settings-lightwell.xml.template target/maven-settings-lightwell.xml
+          podman build -t prp-bench:legacy-lightwell \
+            -f Containerfile.legacy-lightwell \
+            --secret id=lightwell-settings,src=target/maven-settings-lightwell.xml .
           podman build -t prp-bench:hardened-lightwell \
             -f Containerfile.lightwell \
             --secret id=lightwell-settings,src=target/maven-settings-lightwell.xml .
@@ -138,7 +141,7 @@ jobs:
           TARGET="${REGISTRY}/${NAMESPACE}/${REPOSITORY}"
           PUSHED=()
 
-          for variant in legacy hardened hardened-lightwell; do
+          for variant in legacy legacy-lightwell hardened hardened-lightwell; do
             podman image exists "prp-bench:${variant}" || continue
             podman tag "prp-bench:${variant}" "${TARGET}:${variant}"
             podman tag "prp-bench:${variant}" "${TARGET}:${variant}-${SHA}"
