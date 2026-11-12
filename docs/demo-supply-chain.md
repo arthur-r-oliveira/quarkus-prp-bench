@@ -164,9 +164,12 @@ CVEs. The value of `validated` is provenance and reproducibility, not CVE reduct
 want the finding count to move, that is what `remediated` and its `.rhlw-*` version pins are
 for.
 
-The honest framing: "the hardened base eliminated the OS findings; Lightwell `validated`
-gave us verified provenance for part of the dependency tree at identical versions; closing
-the remaining 72 application findings is a `remediated` exercise we have not done yet."
+The honest framing: "Hardened Images and Lightwell are different layers, not competitors.
+The hardened base eliminated the OS findings; Lightwell `validated` gave verified
+provenance for part of the dependency tree at identical versions (same CVE count is
+correct). Closing application findings is either a Quarkus/BOM upgrade or a Lightwell
+`remediated` + `.rhlw-*` pin exercise when the catalog carries those versions — Lightwell
+does not replace HI, and HI does not patch the uber-jar."
 
 **Credential format.** `LW_USER` is the service account username in Red Hat's
 `XXXXXXX|service-account-name` form — the org ID, a pipe, then the account name as shown

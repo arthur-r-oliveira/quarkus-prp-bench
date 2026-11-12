@@ -165,8 +165,9 @@ for r in rows:
 lines += [
     "",
     "Local grype/trivy numbers above and Quay Clair numbers here will not match",
-    "exactly — different scanners and databases — but the OS→0 / app-residue shape",
-    "should agree for the hardened variants.",
+    "exactly — different scanners and databases — but the shape should agree:",
+    "Hardened Images cut the OS/base residue; Lightwell `validated` twins its",
+    "Central pair on app findings; `remediated` + `.rhlw-*` is the CVE-patch path.",
 ]
 
 summary_path = os.path.join(out, "quay-summary.md")

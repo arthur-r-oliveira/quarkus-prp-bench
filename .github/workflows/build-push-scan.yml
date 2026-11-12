@@ -200,6 +200,11 @@ jobs:
             echo "- Runner: self-hosted (\`prp-bench\`)"
             echo "- Commit: \`${{ github.sha }}\`"
             echo "- Quay: [rhn_support_arolivei/prp-bench tags](https://quay.io/repository/rhn_support_arolivei/prp-bench?tab=tags)"
+            echo "- Dashboard: [CI scan history](https://arthur-r-oliveira.github.io/quarkus-prp-bench/)"
+            echo ""
+            echo "> **Layers:** Hardened Images → \`grype OS\` / size. Lightwell → \`grype app\`."
+            echo "> On \`validated\`, \*-lightwell matching Central is expected (provenance)."
+            echo "> CVE patches need \`remediated\` + \`.rhlw-*\` pins — not a substitute for HI."
             echo ""
             if [[ -f target/scans/summary.md ]]; then
               cat target/scans/summary.md

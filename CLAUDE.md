@@ -72,7 +72,9 @@ The same application builds four ways for the supply-chain demo
 - **CI dashboard** (`tools/ci-dashboard/`) harvests `image-scans` artifacts from successful
   runs, merges `summary.json` / markdown, and deploys to GitHub Pages. Counts on the
   dashboard are still dated observations — the page disclaimer must stay. Do not treat the
-  chart as an image property.
+  chart as an image property. Keep the HI vs Lightwell **layer** framing on the dashboard
+  and in run summaries: OS/size = Hardened Images; app = Lightwell (`validated` twins
+  Central; `remediated` is the CVE path).
 
 Run locally as either role:
 

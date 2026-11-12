@@ -174,6 +174,24 @@
     </table>`;
   }
 
+  function twinsNote(run) {
+    const m = variantMap(run);
+    const pairs = [
+      ["legacy", "legacy-lightwell"],
+      ["hardened", "hardened-lightwell"],
+    ];
+    const same = pairs.every(([a, b]) => {
+      if (!m[a] || !m[b]) return true;
+      return (
+        m[a].grype_os === m[b].grype_os &&
+        m[a].grype_app === m[b].grype_app &&
+        m[a].grype_total === m[b].grype_total
+      );
+    });
+    if (!same) return "";
+    return `<p class="sub">Lightwell rows twin Central on this run — expected on <code>validated</code> (provenance). Look at legacy→hardened OS for the Hardened Images effect.</p>`;
+  }
+
   function historyTable(runs) {
     const body = [...runs]
       .reverse()
@@ -217,7 +235,7 @@
     renderStats(latest);
     drawChart($("chart-os"), runs);
     $("latest-sub").innerHTML = `${linkRun(latest)} · ${pill(latest.event)} · sha <code>${shortSha(latest.sha)}</code> · generated ${latest.generated || "—"}`;
-    $("latest-local").innerHTML = localTable(latest);
+    $("latest-local").innerHTML = twinsNote(latest) + localTable(latest);
     $("latest-quay").innerHTML = quayTable(latest);
     $("history-table").innerHTML = historyTable(runs);
   }

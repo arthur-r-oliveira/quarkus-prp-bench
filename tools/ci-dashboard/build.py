@@ -167,8 +167,11 @@ def write_site(out: Path, history: list[dict[str, Any]]) -> None:
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "disclaimer": (
             "Scanner counts are dated observations (grype/trivy DB + Quay Clair), "
-            "not properties of the images. Quote with the generated timestamp and "
-            "grype DB built time. Lightwell validated is provenance, not CVE patches."
+            "not properties of the images — quote with the generated timestamp and "
+            "grype DB built time. Hardened Images move grype OS (rpm / base). "
+            "Lightwell owns the uber-jar: validated = provenance (same CVE count as "
+            "Central is expected); remediated + .rhlw-* pins = CVE backports. "
+            "Identical *-lightwell rows on validated are correct, not a failed demo."
         ),
         "variant_order": list(VARIANT_ORDER),
         "runs": history,

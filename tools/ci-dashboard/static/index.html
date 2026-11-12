@@ -15,21 +15,51 @@
       <div class="brand">PRP Bench · supply-chain CI</div>
       <h1>Image scan dashboard</h1>
       <p class="lede">
-        Daily Build → Push → Scan → Report across the UBI9/microdnf vs
-        <code>hi/openjdk:21</code> matrix, with Lightwell as a dependency-source
-        control — not a CVE patch layer when on <code>validated</code>.
+        Daily Build → Push → Scan → Report on a 2×2: base
+        (UBI9/<code>microdnf</code> vs <code>hi/openjdk:21</code>) × dependency
+        source (Maven Central vs Lightwell). These are <strong>different layers</strong>,
+        not competing products.
       </p>
       <p class="disclaimer" id="disclaimer">Loading history…</p>
       <div class="meta-row" id="meta"></div>
     </header>
+
+    <section class="panel layers" aria-label="How to read the matrix">
+      <h2>How to read the matrix</h2>
+      <div class="layer-grid">
+        <article>
+          <h3>Hardened Images → <code>grype OS</code></h3>
+          <p>
+            Runtime base only (<code>hi/openjdk</code>). Compare
+            <code>legacy</code> vs <code>hardened</code> (same jars). Size and rpm
+            findings move here; the uber-jar does not.
+          </p>
+        </article>
+        <article>
+          <h3>Lightwell → <code>grype app</code></h3>
+          <p>
+            Maven dependencies only.
+            <code>validated</code> = secure rebuild / provenance (CVE count matches
+            Central). <code>remediated</code> + <code>.rhlw-*</code> pins = backported
+            CVE fixes when the catalog has your exact versions.
+          </p>
+        </article>
+      </div>
+      <p class="sub" style="margin-bottom:0">
+        If <code>*-lightwell</code> twins its non-Lightwell pair on
+        <code>validated</code>, that is the expected outcome — not proof that
+        Lightwell “does nothing.” App CVEs also move with a Quarkus BOM bump.
+      </p>
+    </section>
 
     <section class="grid" id="stats" aria-label="Latest snapshot"></section>
 
     <section class="panel">
       <h2>grype OS over time</h2>
       <p class="sub">
-        rpm findings only — what the base image path controls. App
-        (<code>java-archive</code>) is charted separately when non-zero.
+        rpm findings only — the Hardened Images lever. Pair lines that share a base
+        (legacy ≈ legacy-lightwell, hardened ≈ hardened-lightwell) when Lightwell is
+        on <code>validated</code>. App (<code>java-archive</code>) is separate.
       </p>
       <div class="legend">
         <span class="swatch legacy">legacy / legacy-lightwell</span>

@@ -220,10 +220,10 @@ def load(path):
 def grype_counts(doc):
     """Severity counts, plus a split by artifact type.
 
-    The OS/application split is the whole point of the comparison: a hardened base
-    image can only move the rpm findings. The java-archive findings come from the
-    uber-jar and are unchanged by the base image — that is the gap Lightwell
-    Network addresses.
+    The OS/application split is the whole point of the comparison: Hardened Images
+    (the base) can only move rpm findings. java-archive findings come from the
+    uber-jar — Lightwell's layer. validated keeps versions (provenance); remediated
+    + .rhlw-* pins are where CVE counts can drop.
     """
     sev, kind = {}, {"os": 0, "app": 0}
     for m in (doc or {}).get("matches", []):
@@ -302,6 +302,18 @@ for r in rows:
         f"{r['g_total']} | {r['g_os']} | {r['g_app']} | {r['g_crit']} | {r['g_high']} | "
         f"{r['t_total']} | {r['t_crit']} | {r['t_high']} |"
     )
+
+lines += [
+    "",
+    "### How to read this table",
+    "",
+    "- **Hardened Images** (`legacy` → `hardened`): watch **grype OS** and size. Same",
+    "  uber-jar; only the runtime base changes.",
+    "- **Lightwell** (`*` → `*-lightwell`): watch **grype app**. On `validated`, matching",
+    "  CVE counts vs Central are expected (provenance, not patches). CVE reduction needs",
+    "  `remediated` plus `.rhlw-*` pins for versions the catalog actually carries.",
+    "- Do not treat Lightwell as a substitute for Hardened Images, or the reverse.",
+]
 
 with open(os.path.join(out, "summary.md"), "w") as fh:
     fh.write("\n".join(lines) + "\n")

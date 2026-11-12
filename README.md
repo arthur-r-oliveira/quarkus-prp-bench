@@ -86,10 +86,13 @@ inside it. Detail: [docs/engineering-notes.md](docs/engineering-notes.md).
 
 ## Supply chain: Hummingbird, Hardened Images, Lightwell
 
-Same Quarkus uber-jar, three images — only the **base** and the **Maven source**
-change. That isolates what [Hardened Images](https://images.redhat.com) (from
-Project Hummingbird) do versus what [Lightwell](https://www.redhat.com/en/lightwell)
-owns.
+Same Quarkus uber-jar, four images — only the **base** and the **Maven source**
+change. They are **layers, not alternatives**:
+
+| Lever | Owns | What moves in the scan |
+|-------|------|-------------------------|
+| [Hardened Images](https://images.redhat.com) (Hummingbird) | OS / runtime (`hi/openjdk`) | **grype OS**, image size |
+| [Lightwell](https://www.redhat.com/en/lightwell) | App jars | **grype app** — `validated` = provenance (same CVE count); `remediated` + `.rhlw-*` = CVE backports |
 
 ```
 ┌─────────────────────────────────────┐
