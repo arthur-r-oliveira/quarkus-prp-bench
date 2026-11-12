@@ -275,10 +275,13 @@ if first:
     status = ((first.get("descriptor") or {}).get("db") or {}).get("status") or {}
     db_ver = status.get("built") or status.get("schemaVersion", "")
 
+generated = subprocess.run(
+    ["date", "-u", "+%Y-%m-%dT%H:%M:%SZ"], capture_output=True, text=True
+).stdout.strip()
 lines = [
     "# Image scan comparison",
     "",
-    f"Generated: {subprocess.run(['date','-u','+%Y-%m-%dT%H:%M:%SZ'], capture_output=True, text=True).stdout.strip()}",
+    f"Generated: {generated}",
 ]
 if db_ver:
     lines.append(f"Grype vulnerability DB built: {db_ver}")
@@ -302,6 +305,32 @@ for r in rows:
 
 with open(os.path.join(out, "summary.md"), "w") as fh:
     fh.write("\n".join(lines) + "\n")
+
+summary_json = {
+    "generated": generated,
+    "grype_db_built": db_ver or None,
+    "image_name": image_name,
+    "variants": [
+        {
+            "variant": r["variant"],
+            "size": r["size"],
+            "layers": int(r["layers"]) if str(r["layers"]).isdigit() else r["layers"],
+            "sbom_pkgs": r["pkgs"],
+            "grype_total": r["g_total"],
+            "grype_os": r["g_os"],
+            "grype_app": r["g_app"],
+            "grype_crit": r["g_crit"],
+            "grype_high": r["g_high"],
+            "trivy_total": r["t_total"],
+            "trivy_crit": r["t_crit"],
+            "trivy_high": r["t_high"],
+        }
+        for r in rows
+    ],
+}
+with open(os.path.join(out, "summary.json"), "w", encoding="utf-8") as fh:
+    json.dump(summary_json, fh, indent=2)
+    fh.write("\n")
 
 print("\n".join(lines))
 PY

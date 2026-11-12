@@ -1,6 +1,7 @@
 # PRP Bench
 
 [![Build Push Scan Report](https://github.com/arthur-r-oliveira/quarkus-prp-bench/actions/workflows/build-push-scan.yml/badge.svg)](https://github.com/arthur-r-oliveira/quarkus-prp-bench/actions/workflows/build-push-scan.yml)
+[![CI dashboard](https://img.shields.io/badge/CI-dashboard-0f766e)](https://arthur-r-oliveira.github.io/quarkus-prp-bench/)
 [![Quay Repository](https://img.shields.io/badge/quay.io-prp--bench-blue)](https://quay.io/repository/rhn_support_arolivei/prp-bench?tab=tags)
 
 **Industrial Edge measurement** for PRP/HSR underlays — and a **real Quarkus
@@ -165,9 +166,19 @@ tools/quay-scan-report.sh   # Clair table for published tags
 
 [Build → Push → Scan → Report](.github/workflows/build-push-scan.yml) on a
 self-hosted `prp-bench` runner: builds variants, pushes to Quay, runs
-grype/trivy/syft, fetches Quay Clair, writes the run summary. PRs build/scan
-only. Credentials stay in Actions secrets or host login / `~/.config/prp-bench/ci.env`
-— **never in git**.
+grype/trivy/syft, fetches Quay Clair, writes the run summary, then publishes the
+[CI scan dashboard](https://arthur-r-oliveira.github.io/quarkus-prp-bench/)
+(history across successful runs). PRs build/scan only. Credentials stay in
+Actions secrets or host login / `~/.config/prp-bench/ci.env` — **never in git**.
+
+Rebuild the site locally from harvested artifacts:
+
+```bash
+tools/ci-dashboard/harvest-artifacts.sh
+python3 tools/ci-dashboard/build.py \
+  --artifacts-root target/ci-dashboard-artifacts \
+  --out target/ci-dashboard-site
+```
 
 ---
 

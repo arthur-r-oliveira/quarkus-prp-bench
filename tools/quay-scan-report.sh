@@ -173,5 +173,29 @@ summary_path = os.path.join(out, "quay-summary.md")
 text = "\n".join(lines) + "\n"
 with open(summary_path, "w", encoding="utf-8") as fh:
     fh.write(text)
+
+quay_json = {
+    "fetched": fetched,
+    "namespace": namespace,
+    "repository": repository,
+    "ui": ui,
+    "tags": [
+        {
+            "tag": r["tag"],
+            "status": r["status"],
+            "digest": r["digest"],
+            "total": r["total"],
+            "critical": r["Critical"],
+            "high": r["High"],
+            "medium": r["Medium"],
+            "low": r["Low"],
+        }
+        for r in rows
+    ],
+}
+with open(os.path.join(out, "quay-summary.json"), "w", encoding="utf-8") as fh:
+    json.dump(quay_json, fh, indent=2)
+    fh.write("\n")
+
 print(text, end="")
 PY

@@ -69,6 +69,10 @@ The same application builds four ways for the supply-chain demo
   and `hi/syft` run as UID 65532 and cannot otherwise write to a host directory. That cache
   lives under `~/.cache/prp-bench/scanner-cache` (not `target/scans/`) so a self-hosted
   `actions/checkout` clean is not blocked by UID-65532-owned files.
+- **CI dashboard** (`tools/ci-dashboard/`) harvests `image-scans` artifacts from successful
+  runs, merges `summary.json` / markdown, and deploys to GitHub Pages. Counts on the
+  dashboard are still dated observations — the page disclaimer must stay. Do not treat the
+  chart as an image property.
 
 Run locally as either role:
 

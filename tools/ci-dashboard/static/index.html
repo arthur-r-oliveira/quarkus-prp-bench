@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PRP Bench · CI scan dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="hero">
+      <div class="brand">PRP Bench · supply-chain CI</div>
+      <h1>Image scan dashboard</h1>
+      <p class="lede">
+        Daily Build → Push → Scan → Report across the UBI9/microdnf vs
+        <code>hi/openjdk:21</code> matrix, with Lightwell as a dependency-source
+        control — not a CVE patch layer when on <code>validated</code>.
+      </p>
+      <p class="disclaimer" id="disclaimer">Loading history…</p>
+      <div class="meta-row" id="meta"></div>
+    </header>
+
+    <section class="grid" id="stats" aria-label="Latest snapshot"></section>
+
+    <section class="panel">
+      <h2>grype OS over time</h2>
+      <p class="sub">
+        rpm findings only — what the base image path controls. App
+        (<code>java-archive</code>) is charted separately when non-zero.
+      </p>
+      <div class="legend">
+        <span class="swatch legacy">legacy / legacy-lightwell</span>
+        <span class="swatch hardened">hardened / hardened-lightwell</span>
+      </div>
+      <div id="chart-os"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Latest run detail</h2>
+      <p class="sub" id="latest-sub"></p>
+      <div class="detail-grid">
+        <div>
+          <h3 style="margin:0 0 0.5rem;font-size:0.95rem;">Local scanners</h3>
+          <div id="latest-local"></div>
+        </div>
+        <div>
+          <h3 style="margin:0 0 0.5rem;font-size:0.95rem;">Quay Clair</h3>
+          <div id="latest-quay"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>All runs</h2>
+      <p class="sub">Newest last in the chart; table is newest first.</p>
+      <div id="history-table"></div>
+    </section>
+
+    <footer class="footer">
+      Source:
+      <a href="https://github.com/arthur-r-oliveira/quarkus-prp-bench">arthur-r-oliveira/quarkus-prp-bench</a>
+      · Workflow: Build Push Scan Report · Published from CI artifacts
+    </footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

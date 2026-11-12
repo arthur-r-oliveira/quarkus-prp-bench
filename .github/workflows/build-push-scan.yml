@@ -24,6 +24,13 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   pipeline:
@@ -236,3 +243,78 @@ jobs:
             target/scans/quay-summary.md
           if-no-files-found: warn
           retention-days: 30
+
+      # ----------------------------------------------------------------- Dashboard (GitHub Pages)
+      # Aggregate every successful run's image-scans artifact into a durable
+      # history chart. PRs skip publish; push/schedule/dispatch update Pages.
+      - name: Harvest prior scan artifacts
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: tools/ci-dashboard/harvest-artifacts.sh target/ci-dashboard-artifacts
+
+      - name: Pull previously published history (if any)
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          mkdir -p target/ci-dashboard-prior
+          url="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/data/history.json"
+          if curl -fsSL "$url" -o target/ci-dashboard-prior/history.json; then
+            echo "Loaded prior history from $url"
+          else
+            echo "No prior published history yet"
+            rm -f target/ci-dashboard-prior/history.json
+          fi
+
+      - name: Build CI dashboard site
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          args=(
+            --out target/ci-dashboard-site
+            --run-id "${{ github.run_id }}"
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            --sha "${{ github.sha }}"
+            --event "${{ github.event_name }}"
+          )
+          if [[ -d target/ci-dashboard-artifacts ]]; then
+            args+=(--artifacts-root target/ci-dashboard-artifacts)
+          fi
+          if [[ -d target/scans ]]; then
+            args+=(--current target/scans)
+          fi
+          if [[ -f target/ci-dashboard-prior/history.json ]]; then
+            args+=(--history-in target/ci-dashboard-prior/history.json)
+          fi
+          python3 tools/ci-dashboard/build.py "${args[@]}"
+
+      - name: Upload GitHub Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: target/ci-dashboard-site
+
+  publish-dashboard:
+    name: Publish CI dashboard
+    needs: pipeline
+    if: github.event_name != 'pull_request' && needs.pipeline.result == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Summarize
+        run: |
+          {
+            echo "## CI dashboard"
+            echo ""
+            echo "Published: ${{ steps.deployment.outputs.page_url }}"
+            echo ""
+            echo "If this is the first deploy, set **Settings → Pages → Source: GitHub Actions**."
+          } >> "$GITHUB_STEP_SUMMARY"
