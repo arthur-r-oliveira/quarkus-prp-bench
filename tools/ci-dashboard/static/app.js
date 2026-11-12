@@ -30,6 +30,49 @@
     return label;
   }
 
+  function reportLinks(run) {
+    const r = run.reports || {};
+    const parts = [];
+    if (r.index) {
+      parts.push(`<a href="${r.index}">Report pack</a>`);
+    }
+    if (r.summary_md) {
+      parts.push(`<a href="${r.summary_md}">summary.md</a>`);
+    }
+    if (r.summary_json) {
+      parts.push(`<a href="${r.summary_json}">summary.json</a>`);
+    }
+    if (r.quay_md) {
+      parts.push(`<a href="${r.quay_md}">quay.md</a>`);
+    }
+    const grype = (r.files || []).filter((f) => f.endsWith(".grype.json"));
+    const trivy = (r.files || []).filter((f) => f.endsWith(".trivy.json"));
+    if (grype.length && r.dir) {
+      parts.push(
+        `<a href="${r.index}">grype JSON (${grype.length})</a>`
+      );
+    }
+    if (trivy.length && r.dir) {
+      parts.push(
+        `<a href="${r.index}">trivy JSON (${trivy.length})</a>`
+      );
+    }
+    if (r.actions_artifacts) {
+      parts.push(
+        `<a href="${r.actions_artifacts}">Actions artifact</a>`
+      );
+    } else if (r.actions_run || run.run_url) {
+      parts.push(
+        `<a href="${r.actions_run || run.run_url}">Actions run</a>`
+      );
+    }
+    if (r.quay_tags) {
+      parts.push(`<a href="${r.quay_tags}">Quay Security</a>`);
+    }
+    if (!parts.length) return "—";
+    return `<span class="report-links">${parts.join(" · ")}</span>`;
+  }
+
   function renderStats(latest) {
     const m = variantMap(latest);
     const legacy = m.legacy || {};
@@ -205,6 +248,7 @@
           <td class="num">${fmt(m.hardened && m.hardened.grype_os)}</td>
           <td class="num">${fmt(m.legacy && m.legacy.grype_app)}</td>
           <td class="num">${(r.grype_db_built || "—").slice(0, 10)}</td>
+          <td>${reportLinks(r)}</td>
         </tr>`;
       })
       .join("");
@@ -212,6 +256,7 @@
       <thead><tr>
         <th>Run</th><th>Generated</th><th>SHA</th>
         <th>Legacy OS</th><th>Hardened OS</th><th>App</th><th>Grype DB</th>
+        <th>Reports</th>
       </tr></thead>
       <tbody>${body}</tbody>
     </table>`;
@@ -235,6 +280,9 @@
     renderStats(latest);
     drawChart($("chart-os"), runs);
     $("latest-sub").innerHTML = `${linkRun(latest)} · ${pill(latest.event)} · sha <code>${shortSha(latest.sha)}</code> · generated ${latest.generated || "—"}`;
+    $("latest-reports").innerHTML = `
+      <p class="sub">Open the report pack for grype/trivy JSON, or the Actions <code>image-scans</code> artifact for SBOMs too.</p>
+      <p>${reportLinks(latest)}</p>`;
     $("latest-local").innerHTML = twinsNote(latest) + localTable(latest);
     $("latest-quay").innerHTML = quayTable(latest);
     $("history-table").innerHTML = historyTable(runs);

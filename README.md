@@ -183,6 +183,10 @@ python3 tools/ci-dashboard/build.py \
   --out target/ci-dashboard-site
 ```
 
+Each published run includes a **report pack** (`data/runs/<id>/`) with
+`summary.md` / `.json`, Quay summaries, and per-variant grype/trivy JSON.
+The Actions `image-scans` artifact still has SBOMs and raw Quay payloads.
+
 ---
 
 ## Run and deploy

@@ -254,6 +254,23 @@ td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
   table { display: block; overflow-x: auto; }
 }
 
+.reports-bar {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.report-links {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.report-links a {
+  white-space: nowrap;
+}
+
 .footer {
   margin-top: 2rem;
   padding-top: 1rem;

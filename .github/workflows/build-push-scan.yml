@@ -293,6 +293,7 @@ jobs:
           if [[ -f target/ci-dashboard-prior/history.json ]]; then
             args+=(--history-in target/ci-dashboard-prior/history.json)
           fi
+          args+=(--prior-site-url "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}")
           python3 tools/ci-dashboard/build.py "${args[@]}"
 
       - name: Upload GitHub Pages artifact

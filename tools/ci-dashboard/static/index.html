@@ -71,6 +71,7 @@
     <section class="panel">
       <h2>Latest run detail</h2>
       <p class="sub" id="latest-sub"></p>
+      <div id="latest-reports" class="reports-bar"></div>
       <div class="detail-grid">
         <div>
           <h3 style="margin:0 0 0.5rem;font-size:0.95rem;">Local scanners</h3>
@@ -85,7 +86,11 @@
 
     <section class="panel">
       <h2>All runs</h2>
-      <p class="sub">Newest last in the chart; table is newest first.</p>
+      <p class="sub">
+        Newest last in the chart; table is newest first. Use <strong>Reports</strong>
+        for per-run summary + grype/trivy JSON, Actions for the full
+        <code>image-scans</code> artifact (includes SBOMs), and Quay for Clair.
+      </p>
       <div id="history-table"></div>
     </section>
 
